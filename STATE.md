@@ -11,29 +11,73 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
 
 ## Position
 
-- **Phase:** 1 — Core language, drilled → **starting 1A** (everything that isn't
+- **Phase:** 1 — Core language, drilled → **in 1A** (everything that isn't
   a pointer). **Phase 0 is COMPLETE.** 🎉
-- **Task in flight:** none — Phase 0 closed. `p0.5/` has a working hand-written
-  Makefile (`program`/`main.o`/`util.o`/`clean`/`test`, correct deps + tabs,
-  incremental rebuilds verified). **Carry-over (not blocking):** the Makefile
+- **Task in flight:** none — **structs-as-values + padding/alignment is done**
+  (`p1a/sizes.c` built and run: predicted four `sizeof`s, two hits, drew the byte
+  layouts for the two misses). **Carry-over (not blocking):** the `p0.5/Makefile`
   still lacks the strict flag set, an `asan` target, and `.PHONY` — round those
   out early in Phase 1.
-- **Next action:** **begin Phase 1A.** Much of 1A's *integer* material they've
-  already brushed (size_t, signed-overflow-UB, sizeof, signed/unsigned) — per the
-  depth rule, move briskly over those. Spend the time on what's genuinely new:
-  **`struct` as a value (assigning one *copies* it — the Python-reference
-  collision), struct padding/alignment, `enum`, `const`, storage duration
-  (automatic/static/allocated), and the stack-frame mental model.** Recommended
-  first concrete session: **structs-as-values + padding** — drill: *predict a
-  struct's `sizeof` before printing it.* New folder `p1a/`. **First question:**
-  in Python, `b = a` for two objects makes them share; in C, what does `struct Pt
-  b = a;` do to `a`'s bytes — share, or copy?
-- **Sessions this phase:** 0 (Phase 1 just begun)
+- **Next action:** **continue Phase 1A.** Recommended next concrete session:
+  **a function that returns a `struct` by value.** It reinforces today's headline
+  (a struct is a *value* — assigning, passing, *and returning* one all copy the
+  bytes) and is the natural bridge into the stack-frame model that the 1A exit
+  test needs. New drill in `p1a/`. **First question:** a function builds a local
+  struct and `return`s it by value; that local dies the instant the function
+  returns — so how does the *caller* still end up holding a valid struct? After
+  this, the remaining 1A material is: `enum` (a state machine drill), `const`,
+  **storage duration** (automatic vs static vs allocated; `static` at file vs
+  block scope), scope/shadowing, and then the **stack-frame mental model** (the
+  capstone that the exit test checks). Also still outstanding from the 1A plan:
+  the unsigned-wraparound / `-Wconversion` drill.
+- **Sessions this phase:** 1
 - **Phase 1A exit test:** can **draw the stack for a three-deep call chain** and
   say which locals exist at each moment and when each one dies. (ASan becomes a
   real gate in Phase 2, once things allocate.)
 
 ## Last session
+
+**2026-11-16 (session 11) — Phase 1A opens: a struct is a value, and padding.**
+Overnight gap, so the quiz ran: 3 asked, 2 clean, 1 partial.
+- **Q1 (arm64 Mac binary won't run on arm64 EC2 — why?):** correct — same CPU ≠
+  same executable; Mac emits Mach-O + macOS syscalls, Linux only loads ELF.
+- **Q2 (`clang -E` → 599 lines: what's in them, what isn't?):** correct — pasted
+  header *declarations* (prototypes, typedefs, struct shapes, macros), comments
+  stripped; **no function bodies** (printf's code isn't there).
+- **Q3 (is printf's code copied into the binary?):** **partial** — got the
+  headline (not copied, arrives at runtime) but muddled *which* linker does what.
+  Retaught the two-linker split: the **static** linker (build time) leaves an
+  IOU/stub for a dynamically-linked lib; the **dynamic** linker (`dyld`, every
+  launch) maps the `.dylib` and resolves it. Mechanism stays a Phase-3 open thread.
+
+**Covered (new — a real C nuance, not mechanical):**
+- **A `struct` is a value, like an `int`.** `struct Pt b = a;` *copies all the
+  bytes* into a separate block — writing `b.x` cannot touch `a`. The
+  Python-reference collision: Python's `b = a` shares, C copies. The rule
+  generalises: **assigning, passing to a function, *and returning* a struct all
+  copy its bytes.** (Matters later when structs get big or own heap memory.)
+- **`sizeof` is members + *padding*, not the sum.** Each member sits at an address
+  that's a multiple of its own alignment (int→4, double→8) so the CPU reads it in
+  one aligned access; the compiler inserts padding to guarantee that, and rounds
+  the whole struct up to its own alignment (so arrays stay aligned). **Member
+  declaration order changes the size** — largest-alignment-first minimises padding.
+- Clarified: `sizeof(struct S1)` **names a type**, it does not construct/init a
+  struct; `sizeof` is compile-time and does not evaluate its operand.
+
+**Built — `p1a/sizes.c`:** defines S1–S4, prints each `sizeof` with `%zu`.
+Predictions vs reality: S1 `{char,char,char}` → **3** (predicted 4; all-char =
+align 1 = no padding); S2 `{char,double}` → **16** (predicted 12; double wants
+8-align → 7 pad bytes, not 3); S3 `{char,int,char}` → **12** ✓; S4
+`{int,char,char}` → **8** ✓. Same three members, S3 vs S4 = 12 vs 8 purely from
+order — the payoff. Two code bugs on the way, both self-fixed: `sizeof(S1)` missing
+the `struct` tag (undeclared-identifier), and a bare `%` instead of `%zu`.
+
+**Banked 1 learning:** declare-largest-alignment-first / sizeof-is-members-plus-
+padding (`alignment-aliasing`, `types`, `memory`) — first structural-leaning tag
+of Phase 1.
+
+**Where I left off mid-thought:** nothing open; `p1a/sizes.c` compiles clean under
+`-Wall -Wextra` and runs. Next is the return-a-struct-by-value drill.
 
 **2026-11-15 (session 10) — the Makefile; Phase 0 closed.** Same-day, no quiz.
 Wrote a hand-written `Makefile` from scratch in `p0.5/` — first Makefile I'd ever
@@ -280,15 +324,15 @@ retires one after I've answered it correctly twice on different days.*
 | Question | Added | Last asked | Correct streak |
 | --- | --- | --- | --- |
 | Name the four stages between `hello.c` and `hello`. What does each one consume and produce? | 2026-10-18 | 2026-11-08 | 1 |
-| `clang -E hello.c` turns 4 lines into 599. What is in those lines — and what is definitely *not*? | 2026-10-18 | — | 0 |
-| Your binary is arm64 and your EC2 box is arm64. Why won't it run there? | 2026-10-18 | 2026-11-08 | 0 — recovered w/ nudge, re-ask |
+| `clang -E hello.c` turns 4 lines into 599. What is in those lines — and what is definitely *not*? | 2026-10-18 | 2026-11-16 | 1 |
+| Your binary is arm64 and your EC2 box is arm64. Why won't it run there? | 2026-10-18 | 2026-11-16 | 1 |
 | Give three ways `#include` differs from `import`. | 2026-10-18 | 2026-11-08 | 0 — **missed cold, retaught** (no-namespace one was the sticky part) |
 | Why does dereferencing `NULL` usually crash, and what is doing the checking? | 2026-10-18 | 2026-11-15 | 0 — **missed cold, retaught** (said "compiler"; it's the MMU → page fault → kernel → SIGSEGV) |
 | `printf` is handed a value. How does it work out what type it is — and what happens when you're wrong? | 2026-10-18 | — | 0 |
 | A program returns `3`, but `echo $?` says `130`. What happened, and what does `130` decompose into? | 2026-10-18 | 2026-11-08 | 0 — **missed cold, retaught** (said `127+3`; it's `128+2` = killed by SIGINT) |
 | A build prints a warning with a `file:line` and an error prefixed `ld:`. Which one stopped the build, and what does each prefix tell you? | 2026-10-18 | 2026-11-08 | 1 |
 | You rename `main` to `run` and rebuild. Which stage fails — and will the message name a file and line, or a symbol? | 2026-10-18 | — | 0 |
-| Is `printf`'s machine code copied into your binary when you link? If not, what is, and when does the real thing arrive? | 2026-10-18 | — | 0 |
+| Is `printf`'s machine code copied into your binary when you link? If not, what is, and when does the real thing arrive? | 2026-10-18 | 2026-11-16 | 0 — **partial**: got "not copied, arrives at runtime" but muddled the two linkers (static leaves a stub; `dyld` resolves the `.dylib` at launch) |
 | Which of the four stages is the only one that understands C? What does that imply about where a syntax error can come from? | 2026-10-18 | 2026-11-08 | 1 |
 | A C program ran, printed what you expected, and exited `0`. What does that prove? | 2026-10-18 | 2026-10-18 | 1 |
 | A function returning `int` reaches its closing brace with no `return`. When is that defined, and when is it not? | 2026-10-18 | 2026-10-18 | 1 |
@@ -309,6 +353,8 @@ retires one after I've answered it correctly twice on different days.*
 | An include guard prevents *two* different failures — name both, and say which header contents actually need protecting (and which don't). | 2026-11-15 | — | 0 |
 | You can write `struct Point;` twice but not `struct Point { int x; };` twice. Why — what's the difference, in one word? | 2026-11-15 | — | 0 |
 | `make` runs, does its thing; you run `make` again immediately and it says "up to date." What did it compare to decide there was no work — and what did it *not* look at? | 2026-11-15 | — | 0 |
+| In Python `b = a` makes two objects share; in C `struct Pt b = a;` — share or copy? What happens to `a`'s bytes when you then write `b.x`, and what else (besides `=`) silently copies a struct? | 2026-11-16 | — | 0 |
+| The same three members (`int`, `char`, `char`) declared in two different orders give `sizeof` 12 and 8. Why the difference — and which member should come first, and why? | 2026-11-16 | — | 0 |
 
 ## Phase progress
 
@@ -328,16 +374,16 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-28 entries.
+30 entries.
 
 | Tag | Count |
 | --- | --- |
 | `python-collision` | 14 |
-| `toolchain` | 9 |
-| `types` | 9 |
+| `types` | 10 |
+| `toolchain` | 10 |
 | `ub` | 6 |
 | `standard` | 4 |
 | `integer` | 4 |
 | `process` | 3 |
-| `memory` | 2 |
-| `alignment-aliasing` | 1 |
+| `memory` | 3 |
+| `alignment-aliasing` | 2 |

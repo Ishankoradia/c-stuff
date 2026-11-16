@@ -412,3 +412,34 @@ recall queue. It is also the source for `/teach`'s quiz.
   `touch`ing a file forces a rebuild even though nothing in it changed.
 - **When:** 2026-11-15 · P0.5
 - **Tags:** `toolchain`
+
+## Declare struct members largest-alignment-first — `sizeof` is members-plus-padding, not the sum, and member *order* changes it
+
+- **I used to assume:** there wouldn't be any padding — a struct's `sizeof` is
+  just the sum of its members' sizes, and the order you declare them in doesn't
+  matter.
+- **Found out by:** `struct {char a; int b; char c;}` printed `12` but the same
+  three members reordered as `{int b; char a; char c;}` printed `8` — same data,
+  33% smaller. Each member must sit at an address that's a multiple of its own
+  alignment (an `int` at a multiple of 4, a `double` at a multiple of 8) so the
+  CPU can read it in one aligned access; declaring the largest-alignment members
+  first minimises the padding bytes inserted to satisfy that. Also: a `char`-only
+  struct has alignment 1 and zero padding (`sizeof` 3 for three chars), and the
+  total is rounded up to the struct's own alignment so arrays stay aligned.
+- **When:** 2026-11-16 · P1A
+- **Tags:** `alignment-aliasing`, `types`, `memory`
+
+## Declare a no-parameter function as `(void)`, not `()` — in C they mean different things
+
+- **I used to assume:** empty parens `()` meant "this function takes no
+  arguments" — like `def f():` in Python.
+- **Found out by:** calling `foo(99)` on a function declared `foo()` compiled
+  clean under `-Wall -Wextra` — `()` means "unspecified / unchecked argument
+  list," so the compiler does *no* argument checking. Declaring it `foo(void)`
+  made the same call a hard compile error. On `-std=c11` (this whole project) `()`
+  is still unchecked; `(void)` is the only way to say "no parameters" *and* the
+  only one that lets the compiler catch a wrong call. (C23 redefines `()` to mean
+  no-params, but every pre-C23 source I'll read — King, man pages, libpq, OpenSSL
+  — carries the old meaning.)
+- **When:** 2026-11-16 · P1A
+- **Tags:** `standard`, `python-collision`
