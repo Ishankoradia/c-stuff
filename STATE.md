@@ -13,29 +13,77 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
 
 - **Phase:** 1 — Core language, drilled → **in 1A** (everything that isn't
   a pointer). **Phase 0 is COMPLETE.** 🎉
-- **Task in flight:** none — **structs-as-values + padding/alignment is done**
-  (`p1a/sizes.c` built and run: predicted four `sizeof`s, two hits, drew the byte
-  layouts for the two misses). **Carry-over (not blocking):** the `p0.5/Makefile`
-  still lacks the strict flag set, an `asan` target, and `.PHONY` — round those
-  out early in Phase 1.
-- **Next action:** **continue Phase 1A.** Recommended next concrete session:
-  **a function that returns a `struct` by value.** It reinforces today's headline
-  (a struct is a *value* — assigning, passing, *and returning* one all copy the
-  bytes) and is the natural bridge into the stack-frame model that the 1A exit
-  test needs. New drill in `p1a/`. **First question:** a function builds a local
-  struct and `return`s it by value; that local dies the instant the function
-  returns — so how does the *caller* still end up holding a valid struct? After
-  this, the remaining 1A material is: `enum` (a state machine drill), `const`,
-  **storage duration** (automatic vs static vs allocated; `static` at file vs
-  block scope), scope/shadowing, and then the **stack-frame mental model** (the
-  capstone that the exit test checks). Also still outstanding from the 1A plan:
-  the unsigned-wraparound / `-Wconversion` drill.
-- **Sessions this phase:** 1
+- **Task in flight:** none — **structs-as-values + padding, return-by-value, and
+  the stack-frame model are all done** (`p1a/sizes.c` and `p1a/retpair.c` both
+  built and run clean). The **stack frame** was taught head-on (LIFO frames,
+  pushed on call / popped on return, locals' bytes die with the frame) — so the
+  1A exit test ("draw the stack for a three-deep call chain") is now *close*.
+  **Carry-over (not blocking):** the `p0.5/Makefile` still lacks the strict flag
+  set, an `asan` target, and `.PHONY` — round those out early in Phase 1.
+- **Next action:** **continue Phase 1A with storage duration — automatic vs
+  static.** It builds straight off the stack-frame model just taught and lands as
+  a Python-collision: they *just* learned "a local's bytes die when its frame
+  pops," and a `static` local flatly contradicts that (survives across calls).
+  **First question / Socratic hook:** a function has a local counter; you call it
+  three times and it prints 1, 2, 3 — not 1, 1, 1. The frame was torn down and
+  rebuilt each call, so how did the count survive — what storage is that local in,
+  and where does it live if not in the frame? New drill in `p1a/` (a `static`
+  counter that persists across calls). After this, the remaining 1A material is:
+  `enum` (a state-machine drill), `const`, scope/shadowing, and then formally
+  drawing the stack for the **exit test**. Also still outstanding from the 1A
+  plan: the unsigned-wraparound / `-Wconversion` drill.
+- **Sessions this phase:** 2
 - **Phase 1A exit test:** can **draw the stack for a three-deep call chain** and
   say which locals exist at each moment and when each one dies. (ASan becomes a
   real gate in Phase 2, once things allocate.)
 
 ## Last session
+
+**2026-11-16 (session 12, same-day continuation after session 11's wrap) —
+the stack frame, return-by-value, and the `()`-vs-`(void)` trap.** Same-day, no
+quiz. Prompted a teaching correction: Ishan noted that after a big explanation of
+a core concept I jump to the assignment instead of checking understanding — I held
+to checking-first for the rest of the session, and this should route through
+`/tune` into `CLAUDE.md` so it sticks. They also flagged I'd been *using* "stack
+frame" without ever teaching it, so we did.
+
+**Covered (core 1A ground):**
+- **The call stack / stack frames.** Every function call pushes a **frame**
+  (activation record) holding that call's parameters, locals (the *actual bytes*,
+  sitting right there), and bookkeeping (return address). Return → frame
+  **popped**, memory reclaimed. It's **LIFO** — the running function's frame is
+  always on top; a caller's frame persists the whole time anything it called is
+  running, and is gone the instant it returns. **Python collision:** Python locals
+  are names bound to heap objects the GC can keep alive past the call; in C the
+  local's storage *is* the frame — when it pops, the bytes are gone, full stop,
+  nothing can rescue them. Ishan answered the 3-deep prediction (main→a→b) cleanly.
+- **Return-by-value.** Returning a struct **copies its bytes into the caller's
+  storage at the moment of return, before the callee's frame is torn down** — so
+  the caller reads its own copy, never the dead frame. Safe *because* it copies.
+  Foreshadowed 1B: returning a *pointer* to a local would be the dangling-pointer
+  trap (an address escaping into a demolished frame).
+- **Struct init syntax** (brisk — mechanical): the **dot operator** (`v.field =`)
+  and the **brace initializer** (`= {a, b}`, positional, fills in declaration
+  order). Saw the brace form works with *runtime* variables, not just constants.
+- **`()` vs `(void)`** (real nuance): empty `()` is "unspecified/unchecked arg
+  list," not "no params" — `foo(99)` on `foo()` compiles clean; `foo(void)` makes
+  it a hard error. Answered the `int main(void)` open thread (that's what the
+  `void` does). Decided to **stay on `-std=c11`** (not upgrade to C23, which would
+  hide exactly these learnable sharp edges; all reference material is pre-C23).
+
+**Built — `p1a/retpair.c`:** `struct Pair {int x; int y;}`, a function
+`ret(int x, int y)` that builds a local `{x,y}` and returns it **by value**,
+`main(void)` catches the copy and prints it. First draft hardcoded `{3,4}` with a
+no-arg `ret()`; review flagged (a) it didn't take inputs per the brief and (b) the
+`()` gotcha — Ishan fixed both. Final: clean under `-Wall -Wextra`, prints
+`x=5 y=10`.
+
+**Banked 1 learning:** `(void)` not `()` for a no-parameter function
+(`standard`, `python-collision`). (The return-by-value rule was understood but not
+separately banked — it lives as a recall item instead.)
+
+**Where I left off mid-thought:** nothing open; both `p1a/` programs build clean
+and run. Next is storage duration (`static` vs automatic locals).
 
 **2026-11-16 (session 11) — Phase 1A opens: a struct is a value, and padding.**
 Overnight gap, so the quiz ran: 3 asked, 2 clean, 1 partial.
@@ -295,8 +343,10 @@ should offer to close one of these when a session has slack at the end.*
   `otool -L`, and it partly explains the 33KB thread below.
 - **Why is a 4-line program's binary ~33KB?** Theory formed, never checked.
   Phase 3, with `nm`.
-- **`int main(void)` — what is the `void` doing?** Asked twice, never answered.
-  The real answer involves `argv`, which Phase 0 defers.
+- ~~**`int main(void)` — what is the `void` doing?**~~ **CLOSED 2026-11-16:** the
+  `void` explicitly declares zero parameters; empty `()` would mean "unspecified/
+  unchecked," not "none." (The `argv` form of `main` is still deferred, but the
+  `void` question itself is answered.)
 - **UB and the optimiser.** I know "the compiler may assume UB never happens" as
   a sentence, not as something I've watched happen. Revisit at `-O2` in Phase 2.
 - **Not banked:** the second rule from the linker output — *the prefix on a
@@ -355,6 +405,9 @@ retires one after I've answered it correctly twice on different days.*
 | `make` runs, does its thing; you run `make` again immediately and it says "up to date." What did it compare to decide there was no work — and what did it *not* look at? | 2026-11-15 | — | 0 |
 | In Python `b = a` makes two objects share; in C `struct Pt b = a;` — share or copy? What happens to `a`'s bytes when you then write `b.x`, and what else (besides `=`) silently copies a struct? | 2026-11-16 | — | 0 |
 | The same three members (`int`, `char`, `char`) declared in two different orders give `sizeof` 12 and 8. Why the difference — and which member should come first, and why? | 2026-11-16 | — | 0 |
+| `main` calls `a`, `a` calls `b`, and `b` is running. Whose frames exist right now? Is `a`'s local alive? And what happens to it the instant `a` returns — why? | 2026-11-16 | — | 0 |
+| A function builds a local `struct` and returns it *by value*; that local dies when the function returns. How does the caller still get a valid struct — where does the copy go, and *when* relative to the frame being torn down? Why would returning a *pointer* to that local be a disaster instead? | 2026-11-16 | — | 0 |
+| In C, what's the difference between declaring `foo()` and `foo(void)`? Which one lets `foo(99)` compile silently, and which makes it an error — and why does the trap exist? | 2026-11-16 | — | 0 |
 
 ## Phase progress
 
@@ -374,15 +427,15 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-30 entries.
+31 entries.
 
 | Tag | Count |
 | --- | --- |
-| `python-collision` | 14 |
+| `python-collision` | 15 |
 | `types` | 10 |
 | `toolchain` | 10 |
 | `ub` | 6 |
-| `standard` | 4 |
+| `standard` | 5 |
 | `integer` | 4 |
 | `process` | 3 |
 | `memory` | 3 |
