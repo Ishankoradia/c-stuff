@@ -13,31 +13,110 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
 
 - **Phase:** 1 — Core language, drilled → **in 1A** (everything that isn't
   a pointer). **Phase 0 is COMPLETE.** 🎉
-- **Task in flight:** none — **structs-as-values + padding, return-by-value, and
-  the stack-frame model are all done** (`p1a/sizes.c` and `p1a/retpair.c` both
-  built and run clean). The **stack frame** was taught head-on (LIFO frames,
-  pushed on call / popped on return, locals' bytes die with the frame) — so the
-  1A exit test ("draw the stack for a three-deep call chain") is now *close*.
+- **Task in flight:** none — **structs-as-values + padding, return-by-value, the
+  stack-frame model, `printf`/format strings, and storage duration (`static` vs
+  automatic) are all done** (`p1a/sizes.c`, `retpair.c`, `fmt.c`, `tick.c` all
+  built and run). The **stack frame** was taught head-on (LIFO frames, pushed on
+  call / popped on return, locals' bytes die with the frame) — so the 1A exit
+  test ("draw the stack for a three-deep call chain") is now *close*.
   **Carry-over (not blocking):** the `p0.5/Makefile` still lacks the strict flag
   set, an `asan` target, and `.PHONY` — round those out early in Phase 1.
-- **Next action:** **continue Phase 1A with storage duration — automatic vs
-  static.** It builds straight off the stack-frame model just taught and lands as
-  a Python-collision: they *just* learned "a local's bytes die when its frame
-  pops," and a `static` local flatly contradicts that (survives across calls).
-  **First question / Socratic hook:** a function has a local counter; you call it
-  three times and it prints 1, 2, 3 — not 1, 1, 1. The frame was torn down and
-  rebuilt each call, so how did the count survive — what storage is that local in,
-  and where does it live if not in the frame? New drill in `p1a/` (a `static`
-  counter that persists across calls). After this, the remaining 1A material is:
-  `enum` (a state-machine drill), `const`, scope/shadowing, and then formally
-  drawing the stack for the **exit test**. Also still outstanding from the 1A
-  plan: the unsigned-wraparound / `-Wconversion` drill.
-- **Sessions this phase:** 2
+- **Next action:** **continue Phase 1A with `enum` (+ a small state-machine
+  drill), then `const`.** `enum` is a genuinely new construct but mechanically
+  light — the C nuance is that enum constants are *just `int`s* under the hood
+  (named integer constants, 0,1,2… by default), not a distinct safe type like a
+  Python `Enum`; that's the collision to lead with. **First question / Socratic
+  hook:** given `enum State { IDLE, RUNNING, DONE };`, what *actual values and
+  type* does C give `IDLE`/`RUNNING`/`DONE` — and can you accidentally compare or
+  assign one to a plain `int`? Drill: an `enum`-driven state machine (e.g. a tiny
+  turnstile: LOCKED/UNLOCKED transitioning on push/coin) in a new `p1a/` file.
+  After `enum` + `const`: scope/shadowing, then formally drawing the stack for the
+  **exit test**. Also still outstanding from the 1A plan: the unsigned-wraparound
+  / `-Wconversion` drill.
+- **Sessions this phase:** 4
 - **Phase 1A exit test:** can **draw the stack for a three-deep call chain** and
   say which locals exist at each moment and when each one dies. (ASan becomes a
   real gate in Phase 2, once things allocate.)
 
 ## Last session
+
+**2026-11-17 (session 14, same-day continuation after session 13's wrap) —
+storage duration: `static` vs automatic locals.** Same-day, no quiz.
+
+**Covered (a real C nuance + strong Python/JS collision):**
+- **Two independent axes** they'd been conflating: **scope** (where a name is
+  visible) vs **storage duration / lifetime** (how long its bytes exist). For a
+  normal (automatic) local they coincide, which is why it's easy to merge them.
+- **Automatic** locals live on the **stack frame** — born on entry, die on
+  return (what they already knew). A **`static`** local lives in the **data
+  segment** for the **whole program**: created once *before `main`*, its
+  initializer (`= 0`) runs **once, ever** (not per call), and frame teardown never
+  touches it — so the value persists across calls — while its **scope stays
+  local** (invisible outside the function). `static` changes only the lifetime
+  axis. Footnote parked: `static` at *file* scope means a different thing
+  (internal linkage — invisible to other `.c` files); met later.
+- **Python/JS collision (explored in depth):** a plain local in Python/JS doesn't
+  persist either; persistence there is faked with **closures**, **function
+  attributes**, or the **mutable-default-arg gotcha** (`def f(_box=[0])` — default
+  evaluated once at def-time, stored on the function object's `__defaults__`,
+  mutated in place). Traced *why* it survives: the module namespace (a name→object
+  table) holds `f` → `f` holds the list → the list stays alive. Key divergence:
+  Python/JS persist by **keeping a reference alive on the heap** (GC-managed); C's
+  `static` is a **permanent reserved data-segment address**, no object, no
+  reference. Also: `static` has **three** unrelated meanings across C (block-scope
+  lifetime; file-scope linkage) and C++/JS/TS (class member).
+
+**Built — `p1a/tick.c`:** `counter(void)` with a `static int cnt = 0; cnt++`
+printed **1,2,3,4** across four calls; removing just the `static` collapsed it to
+**1,1,1,1**. Clean under `-Wall -Wextra`. Notably used `(void)` on both functions
+unprompted — yesterday's `()`-vs-`(void)` rule sticking.
+
+**Banked 1 learning:** a `static` local lives in the data segment and survives
+frame teardown (`memory`, `python-collision`).
+
+**Where I left off mid-thought:** nothing open; `tick.c` demonstrates both
+behaviours. Next is `enum` (+ a state-machine drill), then `const`.
+
+**2026-11-17 (session 13) — a recall miss on `printf` became the session: the
+format string is trusted, not checked.** Overnight gap, so the quiz ran. **Q1**
+(*how does `printf` work out an argument's type, and what if you're wrong?*) was
+**missed cold** — answered *"figured out at compile time."* Per protocol that
+became the whole session and the planned new topic (storage duration) was pushed.
+Stopped the quiz after Q1 (no badgering); Q2/Q3 not asked.
+
+**Covered (the reteach):**
+- **`printf` is variadic** (`printf(const char *fmt, ...)`) and does **no** type
+  detection. At runtime a C value is just **untyped bytes** — the type lived only
+  in the compiler and the compiler is gone. `printf` reads the **format string**
+  and, per each conversion specifier, grabs N bytes and interprets them however
+  the specifier says. It **trusts the format string completely** and cannot be
+  told it's wrong. **Python collision:** `print(x)` gets a tagged object and asks
+  it its type; C hands over naked bytes with nothing to ask.
+- **Mismatch = UB, and the *shape* of the lie decides the damage:** `%d` on a
+  `double` → reads wrong bytes → **garbage number**, no crash (nothing
+  dereferenced); `%s` on an `int` → takes the int's bits as an **address**,
+  follows it into unmapped memory → **SIGSEGV** (same MMU/page-fault chain from
+  session 8).
+- **The only checking is a compile-time *courtesy*:** clang `-Wformat` (in
+  `-Wall`) reads the **literal** format string, warns on a mismatch, and even
+  prints the correct specifier (`^ %d` / `%f`). It's the *compiler*, not `printf`
+  — and it can't help if the format string is a variable. The warnings are
+  **warnings, not errors**, so the binary still built and the UB was reachable;
+  `-Werror` (the deferred Makefile carry-over) would make them fatal.
+- New specifier met: **`%f` for a `double`** (alongside `%d` int, `%zu` size_t).
+
+**Built — `p1a/fmt.c`:** baseline prints an `int`/`double`/`size_t` with the
+right specifiers (clean under `-Wall -Wextra`), then two deliberate lies (`%d` on
+the `double`, `%s` on the `int`). Saw `-Wformat` warn both at compile, then ran it
+and observed exactly the predicted split: garbage negative number, then a
+segfault. Predicted both the compiler reaction and the runtime behaviour correctly.
+
+**Banked 1 learning:** `printf` does no type checking — it trusts the format
+string completely (`types`, `python-collision`, `ub`).
+
+**Where I left off mid-thought:** nothing open; `p1a/fmt.c` builds (with the two
+intended `-Wformat` warnings) and demonstrates both failure modes. Next is storage
+duration (`static` vs automatic) — deferred from today.
 
 **2026-11-16 (session 12, same-day continuation after session 11's wrap) —
 the stack frame, return-by-value, and the `()`-vs-`(void)` trap.** Same-day, no
@@ -358,6 +437,11 @@ should offer to close one of these when a session has slack at the end.*
   a string literal assigned to `char *` is read-only and writing to it is UB — but
   I've only got the sentences, not the mechanism or the memory picture. This is
   *the* Phase 1B topic; met properly there.
+- **Parked teaching tune (route through `/tune`, not a C topic).** Ishan's
+  feedback (2026-11-16): after a big explanation of a *core* concept, check
+  understanding (ask for a prediction) **before** handing off to the assignment —
+  don't jump straight to the build. Honored for the rest of that session; needs
+  `/tune` to fold it into `CLAUDE.md` so it sticks. Not yet actioned.
 - **Makefile polish (carry-over from 0.5).** The `p0.5/Makefile` works but is
   minimal — no strict flag set, no `asan` target, no `.PHONY`. Round it out early
   in Phase 1 (and once `-Werror -Wconversion` go in, the `int n = sizeof(...)` in
@@ -378,7 +462,7 @@ retires one after I've answered it correctly twice on different days.*
 | Your binary is arm64 and your EC2 box is arm64. Why won't it run there? | 2026-10-18 | 2026-11-16 | 1 |
 | Give three ways `#include` differs from `import`. | 2026-10-18 | 2026-11-08 | 0 — **missed cold, retaught** (no-namespace one was the sticky part) |
 | Why does dereferencing `NULL` usually crash, and what is doing the checking? | 2026-10-18 | 2026-11-15 | 0 — **missed cold, retaught** (said "compiler"; it's the MMU → page fault → kernel → SIGSEGV) |
-| `printf` is handed a value. How does it work out what type it is — and what happens when you're wrong? | 2026-10-18 | — | 0 |
+| `printf` is handed a value. How does it work out what type it is — and what happens when you're wrong? | 2026-10-18 | 2026-11-17 | 0 — **missed cold, retaught** (said "compile time"; really: variadic, trusts the format string, no runtime type detection, mismatch is UB) |
 | A program returns `3`, but `echo $?` says `130`. What happened, and what does `130` decompose into? | 2026-10-18 | 2026-11-08 | 0 — **missed cold, retaught** (said `127+3`; it's `128+2` = killed by SIGINT) |
 | A build prints a warning with a `file:line` and an error prefixed `ld:`. Which one stopped the build, and what does each prefix tell you? | 2026-10-18 | 2026-11-08 | 1 |
 | You rename `main` to `run` and rebuild. Which stage fails — and will the message name a file and line, or a symbol? | 2026-10-18 | — | 0 |
@@ -408,6 +492,8 @@ retires one after I've answered it correctly twice on different days.*
 | `main` calls `a`, `a` calls `b`, and `b` is running. Whose frames exist right now? Is `a`'s local alive? And what happens to it the instant `a` returns — why? | 2026-11-16 | — | 0 |
 | A function builds a local `struct` and returns it *by value*; that local dies when the function returns. How does the caller still get a valid struct — where does the copy go, and *when* relative to the frame being torn down? Why would returning a *pointer* to that local be a disaster instead? | 2026-11-16 | — | 0 |
 | In C, what's the difference between declaring `foo()` and `foo(void)`? Which one lets `foo(99)` compile silently, and which makes it an error — and why does the trap exist? | 2026-11-16 | — | 0 |
+| You pass a `double` to `printf("%d\n", x)` and build with `-Wall`. Does it compile? Does it run? Who catches the mismatch and who stays blind to it — and why `%d`-on-`double` prints garbage but `%s`-on-`int` segfaults? | 2026-11-17 | — | 0 |
+| A function's `static int cnt = 0; cnt++;` prints 1,2,3 across three calls, not 1,1,1. Where does `cnt` physically live, on which call does the `= 0` actually run, and how do its *scope* and its *lifetime* differ? | 2026-11-17 | — | 0 |
 
 ## Phase progress
 
@@ -427,16 +513,16 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-31 entries.
+33 entries.
 
 | Tag | Count |
 | --- | --- |
-| `python-collision` | 15 |
-| `types` | 10 |
+| `python-collision` | 17 |
+| `types` | 11 |
 | `toolchain` | 10 |
-| `ub` | 6 |
+| `ub` | 7 |
 | `standard` | 5 |
 | `integer` | 4 |
+| `memory` | 4 |
 | `process` | 3 |
-| `memory` | 3 |
 | `alignment-aliasing` | 2 |

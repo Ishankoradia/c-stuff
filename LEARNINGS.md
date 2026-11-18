@@ -443,3 +443,36 @@ recall queue. It is also the source for `/teach`'s quiz.
   — carries the old meaning.)
 - **When:** 2026-11-16 · P1A
 - **Tags:** `standard`, `python-collision`
+
+## `printf` does no type checking or detection — it trusts the format string completely
+
+- **I used to assume:** `printf` figured out each argument's type itself (and
+  that it happened "at compile time").
+- **Found out by:** at runtime a C value is just untyped bytes — `printf` is
+  *variadic* (`printf(const char *fmt, ...)`) and reads the format string to
+  decide how many bytes to grab and how to interpret them. `printf("%s\n", n)`
+  with `n` an `int` took the int's bits as an **address**, followed it, and
+  segfaulted; `%d` on a `double` just printed a garbage number. The only
+  type-checking is a *compile-time courtesy* — clang `-Wformat` (in `-Wall`) reads
+  the **literal** format string and warns (it even printed the right specifier),
+  but that's the compiler, not `printf`, and it can't help if the format string is
+  a variable. Python's `print` can't be lied to this way — it receives a tagged
+  object and asks it its type; C hands over naked bytes with nothing to ask.
+- **When:** 2026-11-17 · P1A
+- **Tags:** `types`, `python-collision`, `ub`
+
+## A `static` local lives in the program's data segment, not the stack frame — its value survives after the call frame is torn down
+
+- **I used to assume:** every local dies when its function's frame is popped, so
+  to keep a value across calls you'd need a global variable.
+- **Found out by:** a function with `static int cnt = 0; cnt++;` printed 1,2,3,4
+  across four calls; deleting just the `static` made it print 1,1,1,1. The static
+  version keeps its value because it lives in a fixed data-segment slot (created
+  once, before `main`, `= 0` run only once) that frame teardown never touches —
+  while its *scope* stays local (invisible outside the function). So scope (where
+  a name is visible) and storage duration (how long its bytes live) are two
+  independent axes; `static` changes only the second. (Python/JS fake this with
+  closures / mutable default args — a long-lived object *referencing* the value on
+  the heap; C's static is a permanent reserved address with no reference needed.)
+- **When:** 2026-11-17 · P1A
+- **Tags:** `memory`, `python-collision`
