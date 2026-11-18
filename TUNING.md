@@ -150,3 +150,20 @@ same-day / hours-later resumes skip the quiz (or ask ≤1 older item); the full
 cold 2-3-question quiz runs only after an overnight-or-longer gap. Reason: four
 same-day sessions today each opened with a quiz on hours-old material — badgering,
 not spaced repetition.
+
+## 2026-11-18 — check with a prediction, drop the "is it done?" pulse-checks
+
+> "after a really big paragrpah of explanation or correcting me, you ask me if
+> its done rather than going to the next one"
+
+(Also folds in the un-applied 2026-11-16 note: *check understanding before handing
+off on a core concept*. The two reconcile rather than conflict.)
+
+**File:** `CLAUDE.md` (item 2 — "Ask before answering").
+**Sharpened** the existing Socratic rule rather than adding a new one: keep the
+*ask-before-telling*, add that after a big explanation/correction I must **not**
+tack on a passive confirmation ("make sense?", "clear?", "is that done?") — it
+stalls and reads as asking permission. The only understanding-check is a **real
+prediction** at the moment that matters (a *core* concept, once, before the build
+handoff); everywhere else, just move to the next thing. Resolves the parked note
+in `STATE.md` open threads (removed).

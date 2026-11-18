@@ -32,13 +32,58 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
   turnstile: LOCKED/UNLOCKED transitioning on push/coin) in a new `p1a/` file.
   After `enum` + `const`: scope/shadowing, then formally drawing the stack for the
   **exit test**. Also still outstanding from the 1A plan: the unsigned-wraparound
-  / `-Wconversion` drill.
-- **Sessions this phase:** 4
+  / `-Wconversion` drill. (NB: `enum` has now been deferred *twice* — a recall
+  miss took session 13, another took session 15 — so it's genuinely next and
+  overdue. **Session 15 produced no new binary** [a Phase-0 reteach of ground
+  already built]; `enum` is new 1A material and its session **must** end with a
+  binary, no skipping.)
+- **Sessions this phase:** 5
 - **Phase 1A exit test:** can **draw the stack for a three-deep call chain** and
   say which locals exist at each moment and when each one dies. (ASan becomes a
   real gate in Phase 2, once things allocate.)
 
 ## Last session
+
+**2026-11-18 (session 15) — a recall miss on `#include` vs `import` became the
+session (reteach + consolidation); no new binary.** Overnight gap, so the quiz
+ran. **Q1** (*three ways `#include` differs from `import`*) → got **1 of 3** (the
+shape-vs-code one: `#include` brings declarations, `import` brings runnable code);
+**missed the other two cold** (caching, namespace), which are the ones historically
+sticky. Became the session; `enum` pushed again. Stopped the quiz after Q1.
+
+**Covered (reteach of the two missing differences, + a deep compile-vs-link dive):**
+- **No caching:** `#include` is a dumb **text paste** with no memory — the same
+  header's text is re-pasted every time it appears (directly or indirectly). That's
+  *why include guards exist*: a guard is a **manual cache** (second paste → no-op),
+  recreating what `import` gives for free.
+- **No namespace:** `#include` dumps every name **flat into global scope** (no
+  `stdio.printf` prefix) — which is why a home-grown global `FILE` collides with
+  `stdio.h`'s `FILE` (the session-4 experiment).
+- **The 2-vs-3 sorting test** (both throw "redefinition"-style errors): *"one thing
+  pasted twice"* → caching → **guards fix it**; *"two different things fighting over
+  one name"* → namespace → **renaming fixes it**. Ishan initially mislabeled the
+  double-struct case as namespace; his own "guard = caching" answer untangled it.
+- **Deep dive (his question):** including the same struct-defining header twice in
+  one `.c` is a **compile-time** error (`redefinition of 'struct Point'`, file:line),
+  **not** a linker error — because both pastes are in the *same* translation unit,
+  and a `struct` **type** is a compile-time-only concept that produces **no linker
+  symbol** (shape, not code). The linker's duplicate-symbol error is a *different*
+  scenario: a function/global defined in *two separate* `.c` files. Also reaffirmed
+  declaration (repeatable, `struct P;`) vs definition (once per TU, `struct P {…};`).
+
+**Built — nothing.** Skipped the confirming guard/no-cache experiment (he's built
+it twice before — sessions 4 and `p0.4`). Logged as a reteach/consolidation session;
+the "binary every session" rule is waived here *only* because it was old ground.
+
+**Also — ran `/tune` mid-session:** his feedback *"after a really big paragraph of
+explanation or correcting me, you ask me if its done rather than going to the next
+one."* Sharpened `CLAUDE.md` item 2: drop the passive "make sense?/clear?/is it
+done?" pulse-checks; the only understanding-check is a real **prediction** at the
+build handoff on a core concept. (Also folded in the parked 11-16 note; that open
+thread is now removed.)
+
+**Where I left off mid-thought:** nothing open. Next is `enum` (+ state-machine
+drill) — new material, ends in a binary.
 
 **2026-11-17 (session 14, same-day continuation after session 13's wrap) —
 storage duration: `static` vs automatic locals.** Same-day, no quiz.
@@ -437,11 +482,6 @@ should offer to close one of these when a session has slack at the end.*
   a string literal assigned to `char *` is read-only and writing to it is UB — but
   I've only got the sentences, not the mechanism or the memory picture. This is
   *the* Phase 1B topic; met properly there.
-- **Parked teaching tune (route through `/tune`, not a C topic).** Ishan's
-  feedback (2026-11-16): after a big explanation of a *core* concept, check
-  understanding (ask for a prediction) **before** handing off to the assignment —
-  don't jump straight to the build. Honored for the rest of that session; needs
-  `/tune` to fold it into `CLAUDE.md` so it sticks. Not yet actioned.
 - **Makefile polish (carry-over from 0.5).** The `p0.5/Makefile` works but is
   minimal — no strict flag set, no `asan` target, no `.PHONY`. Round it out early
   in Phase 1 (and once `-Werror -Wconversion` go in, the `int n = sizeof(...)` in
@@ -460,7 +500,7 @@ retires one after I've answered it correctly twice on different days.*
 | Name the four stages between `hello.c` and `hello`. What does each one consume and produce? | 2026-10-18 | 2026-11-08 | 1 |
 | `clang -E hello.c` turns 4 lines into 599. What is in those lines — and what is definitely *not*? | 2026-10-18 | 2026-11-16 | 1 |
 | Your binary is arm64 and your EC2 box is arm64. Why won't it run there? | 2026-10-18 | 2026-11-16 | 1 |
-| Give three ways `#include` differs from `import`. | 2026-10-18 | 2026-11-08 | 0 — **missed cold, retaught** (no-namespace one was the sticky part) |
+| Give three ways `#include` differs from `import`. | 2026-10-18 | 2026-11-18 | 0 — **got 1/3, retaught** (had shape-vs-code; missed caching + namespace again — the two sticky ones) |
 | Why does dereferencing `NULL` usually crash, and what is doing the checking? | 2026-10-18 | 2026-11-15 | 0 — **missed cold, retaught** (said "compiler"; it's the MMU → page fault → kernel → SIGSEGV) |
 | `printf` is handed a value. How does it work out what type it is — and what happens when you're wrong? | 2026-10-18 | 2026-11-17 | 0 — **missed cold, retaught** (said "compile time"; really: variadic, trusts the format string, no runtime type detection, mismatch is UB) |
 | A program returns `3`, but `echo $?` says `130`. What happened, and what does `130` decompose into? | 2026-10-18 | 2026-11-08 | 0 — **missed cold, retaught** (said `127+3`; it's `128+2` = killed by SIGINT) |
@@ -494,6 +534,8 @@ retires one after I've answered it correctly twice on different days.*
 | In C, what's the difference between declaring `foo()` and `foo(void)`? Which one lets `foo(99)` compile silently, and which makes it an error — and why does the trap exist? | 2026-11-16 | — | 0 |
 | You pass a `double` to `printf("%d\n", x)` and build with `-Wall`. Does it compile? Does it run? Who catches the mismatch and who stays blind to it — and why `%d`-on-`double` prints garbage but `%s`-on-`int` segfaults? | 2026-11-17 | — | 0 |
 | A function's `static int cnt = 0; cnt++;` prints 1,2,3 across three calls, not 1,1,1. Where does `cnt` physically live, on which call does the `= 0` actually run, and how do its *scope* and its *lifetime* differ? | 2026-11-17 | — | 0 |
+| You `#include` the same struct-defining header twice in one `.c`. Is the duplicate-definition error from the compiler or the linker — and why can the *other* one not catch it? | 2026-11-18 | — | 0 |
+| Two failure modes both say "redefinition": same thing pasted twice vs two different things with one name. Which is which, which does an include guard fix, and what fixes the other? | 2026-11-18 | — | 0 |
 
 ## Phase progress
 

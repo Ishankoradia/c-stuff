@@ -476,3 +476,18 @@ recall queue. It is also the source for `/teach`'s quiz.
   the heap; C's static is a permanent reserved address with no reference needed.)
 - **When:** 2026-11-17 · P1A
 - **Tags:** `memory`, `python-collision`
+
+## A C `enum` is just named integer constants — no runtime guard, no type check, unlike Python's `Enum`
+
+- **I used to assume:** a C `enum` was a distinct, safe type like Python's
+  `Enum` — members that aren't plain ints, and that you can't put an arbitrary
+  integer into.
+- **Found out by:** `enum State { LOCKED, UNLOCKED };` just makes named int
+  constants (`LOCKED`==0, `UNLOCKED`==1, auto-numbered from 0); an `enum State`
+  variable is a single int. So `int x = UNLOCKED;` is fine and `enum State s = 99;`
+  compiles with no complaint and stores 99 — a state the enum never named. There's
+  no array/object stored for the "set," and no runtime guarding at all; the enum is
+  pure compile-time *naming* over plain ints. (Payoff isn't safety — it's
+  readability + a `-Wswitch` warning when a `switch` misses a case.)
+- **When:** 2026-11-18 · P1A
+- **Tags:** `types`, `python-collision`

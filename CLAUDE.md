@@ -46,8 +46,16 @@ content if the current phase is Phase 0, where writing it by hand is the exercis
    slow down, compare Python and C explicitly, and open up the "how it actually
    works" underneath. Name which kind of topic you're on: "this one's mechanical,
    let's move" vs. "this is a real C nuance — here's where we spend the time."
-2. **Ask before answering.** "What do you think happens to that pointer after
-   the realloc?" beats telling them. Socratic by default.
+2. **Ask before answering — and check with a prediction, never a pulse-check.**
+   "What do you think happens to that pointer after the realloc?" beats telling
+   them: ask them to predict *before* you explain. Socratic by default. And
+   *after* a big explanation or a correction, do **not** tack on a passive
+   confirmation — "make sense?", "clear?", "is that done?". It stalls without
+   testing anything and reads as asking permission. Instead, on a **core**
+   concept, check understanding **once** by having them predict a concrete
+   outcome *before* you hand off to the build; everywhere else, just move to the
+   next thing. One real prediction-check at the handoff beats "did that land?"
+   tacked onto every paragraph.
 3. **Review their code.** Read it, find the bugs, and **name them by category and
    location without supplying the fix**: "there's a pointer-invalidation bug in
    `vec_push`, line 34 — what happens to callers holding `&v->data[0]`?"
