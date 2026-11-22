@@ -491,3 +491,17 @@ recall queue. It is also the source for `/teach`'s quiz.
   readability + a `-Wswitch` warning when a `switch` misses a case.)
 - **When:** 2026-11-18 · P1A
 - **Tags:** `types`, `python-collision`
+
+## A `NULL` pointer fails loud (deterministic SIGSEGV); an uninitialized pointer fails silent (garbage address) — so initialize pointers to `NULL` and null-check before dereferencing
+
+- **I used to assume:** dereferencing a bad pointer — `NULL` included — just hands you a garbage value. (This was literally my guess at the start of the session.)
+- **Found out by:** `p1b/null.c` — `int *p = NULL; *p` is a *deterministic* SIGSEGV at address `0x0` (the deliberately-unmapped virtual page), **not** garbage. It's the *uninitialized* pointer that holds a leftover garbage address and may deref into valid-looking memory → silent corruption that passes every test. `NULL` is C's `None`, but its deref is an **uncatchable** crash, not a catchable `AttributeError` — so guard every maybe-null deref with a null-check.
+- **When:** 2026-11-22 · P1B
+- **Tags:** `memory`, `ub`, `python-collision`
+
+## A runtime crash can still name a source line — because compile-time tooling (`-g`'s DWARF map, and the sanitizer's inserted checks) writes file:line *into the binary* for a runtime tool to read back
+
+- **I used to assume:** once the program is running the compiler is long gone, so a runtime crash has no way to know *which source line* it happened on.
+- **Found out by:** the `NULL` deref under `-fsanitize -g` reported `null.c:<line>` — because at **compile time** UBSan records every dereference site *with its file and line* and bakes that into the binary, and `-g` writes a DWARF address→line map (the `.dSYM`). The runtime handler just prints back what was stored. Strip `-g` *and* the sanitizers and the same deref gives a bare `segmentation fault` with **no line** — nobody wrote the map down.
+- **When:** 2026-11-22 · P1B
+- **Tags:** `toolchain`, `process`
