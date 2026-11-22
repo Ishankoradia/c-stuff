@@ -24,41 +24,81 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
   **address** and dereference it to reach back into the caller's frame; **the
   pointer itself is still passed by value** (a *copy of the address*, which still
   points at the same storage) — that's why C has **no true pass-by-reference**.
-  Built `p1b/ptr.c` and `p1b/swap.c` (`swap(int *, int *)` via a temp; `x`/`y`
-  actually exchanged; ran **clean under `-fsanitize=address,undefined`**).
-  **Tooling met this session:** the dev build flags `-g` (emit DWARF debug info →
-  readable reports), `-O0` (no optimization → *accurate* line-mapping/stepping),
-  `-fsanitize=address,undefined` (ASan = runtime memory-bug catcher: OOB,
-  use-after-free/return, double-free, leaks; UBSan = runtime UB catcher). Also:
-  macOS auto-runs `dsymutil` under `-g`, producing a **`swap.dSYM` bundle**
-  (separate debug symbols; build output → `.gitignore` + `clean` should
-  `rm -rf *.dSYM`).
+  Built `p1b/ptr.c`, `p1b/swap.c`, `p1b/null.c`; all ran clean/as-intended under
+  `-fsanitize=address,undefined`. **`NULL` is done (session 21):** a "points at
+  nothing" sentinel (C's `None`), literally address `0`; deref → *deterministic*
+  SIGSEGV at `0x0` (unmapped page) — **not** garbage; the *uninitialized/wild*
+  pointer is the dangerous one (garbage address → possible silent corruption that
+  passes tests); so **init pointers to `NULL` and null-check before deref**. Also
+  cracked *how a runtime crash prints a source line* (UBSan bakes each deref site's
+  file:line into the binary at compile time; `-g` writes the DWARF/`.dSYM` map).
+  **Tooling met:** `-g` (DWARF debug info → readable reports), `-O0` (no
+  optimization → *accurate* line-mapping), `-fsanitize=address,undefined` (ASan
+  runtime mem-bug catcher + UBSan runtime UB catcher); macOS auto-runs `dsymutil`
+  under `-g` → a **`.dSYM` bundle** (separate debug symbols; build output →
+  `.gitignore` + `clean` should `rm -rf *.dSYM`).
   **Carry-over (not blocking):** the `p0.5/Makefile` still lacks the strict flag
   set, an `asan` target, `.PHONY`, and a `*.dSYM` clean. **From here on, build with
   the sanitizers on as a reflex** (nothing allocates until Phase 2, but the habit
   is the point; it becomes an absolute gate the moment there's heap).
-- **Next action:** pick up the **owed `NULL`** (bumped twice) *and* cash in the two
-  parked payoffs — all small, all reinforcing, good for one session: (1) **`NULL`**
-  — a pointer value meaning "points at nothing" (literally address 0); dereferencing
-  it → the exact SIGSEGV chain they met in Phase 0 (MMU can't translate addr 0 →
-  page fault → SIGSEGV). Worth *seeing* under UBSan/ASan now (it'll name the null
-  deref). (2) **cast-away-`const`** (parked since session 17): take `&x` on a
-  `const int`, cast the `const` off, write through the pointer — observe whether the
-  write "sticks," segfaults, or seems ignored (UB; may be in read-only memory or the
-  value was baked in). (3) **`&outer_x` shadow-proof** (parked session 18): grab
-  `&outer_x` *before* an inner shadowing block, then reach the outer `5` through
-  that pointer from *inside* the block — proving the shadowed variable's storage
-  never moved. **After these:** pointer arithmetic + array→pointer decay (the big
-  one — its own session; the long-standing open thread). Primary source:
-  **K. N. King §11.1–11.5, §12** (arrays/pointers). Still outstanding from 1A: the
-  unsigned-wraparound / `-Wconversion` drill + Makefile strict-flag polish (fold
-  into one tooling session).
-- **Sessions this phase:** 10 (1B: 2)
+- **Next action:** cash in the **two parked payoffs** — both small, both reinforce
+  pointers *and* revisit earlier topics, good for one session: (1) **cast-away-
+  `const`** (parked since session 17): take `&x` on a `const int`, cast the `const`
+  off, write through the pointer — observe whether the write "sticks," segfaults, or
+  seems ignored (UB; the object may be in read-only memory, or the value was baked
+  in at reads). (2) **`&outer_x` shadow-proof** (parked session 18): grab `&outer_x`
+  *before* an inner shadowing block, then reach the outer `5` through that pointer
+  from *inside* the block — proving the shadowed variable's storage never moved
+  (storage ≠ name-visibility, made concrete). **After these:** pointer arithmetic +
+  array→pointer decay (the big 1B topic — its own session; the long-standing open
+  thread). Primary source: **K. N. King §11.1–11.5, §12** (arrays/pointers). Still
+  outstanding from 1A: the unsigned-wraparound / `-Wconversion` drill + Makefile
+  strict-flag polish (fold into one tooling session).
+- **Sessions this phase:** 11 (1B: 3)
 - **1B exit test:** given any pointer drill, state for each pointer — what it
   points at, who owns that memory, and when it dies. (From 1B on: sanitizer-clean,
   zero leaks, no partial credit.)
 
 ## Last session
+
+**2026-11-22 (session 21, FIFTH session of the day — deliberately light,
+consolidating material, which suits it; didn't re-run the rested-brain fork, just
+noted it) — `NULL`.** Same-day, no quiz.
+
+**Covered (spent the depth on purpose/danger, since they'd already cracked the
+crash mechanism in the session-20 mull):**
+- **What `NULL` is *for*:** the "no object here" **sentinel** — C's `None`. Used
+  as a return for not-found, **`malloc` failure** (Phase 2 foreshadow), end-of-list
+  (Phase 3), optional/absent. `NULL` is a macro (`<stddef.h>`) ≈ address `0`. The
+  discipline: **null-check before dereferencing** any maybe-null pointer.
+- **`NULL` vs an uninitialized ("wild") pointer** — the load-bearing distinction
+  they nailed: `NULL` deref = *deterministic, loud* SIGSEGV at `0x0`; an
+  uninitialized pointer holds a *garbage address* → may crash, or **worse**, hit
+  valid-looking memory → *silent* corruption that passes tests. So `NULL` is the
+  *safer* bad value (fails fast at the scene); defensive C **initializes pointers
+  to `NULL`**. Python parallel: `None` deref is a *catchable* `AttributeError`; C's
+  is an *uncatchable* SIGSEGV.
+- **Their unprompted question → a real toolchain insight:** "it's a *runtime*
+  crash, how did we get a line number?" Taught: the line is **compile-time
+  knowledge serialized into the binary** — UBSan's `-fsanitize=null` instrumentation
+  records each deref site's file:line as embedded data at compile time; `-g` writes
+  the DWARF address→line map (the `.dSYM`). Runtime tools print back what was
+  stored. Strip `-g` + sanitizers → bare `segmentation fault`, no line. This is the
+  deliberate exception to their "the compiler is gone at runtime" model.
+
+**Built — `p1b/null.c`:** `int *p = NULL;` printed as `0x0`; deliberate deref →
+watched the **deterministic SIGSEGV at `0x0`** under `-fsanitize=address,undefined
+-g -O0`, and *read the named sanitizer report* (the exercise was reading the
+report, not debugging the crash).
+
+**Banked 2 learnings** (via `/learnings`, their words): (1) `NULL` fails loud vs an
+uninitialized pointer failing silent → init to `NULL` + null-check (`memory`, `ub`,
+`python-collision`); (2) a runtime crash can name a source line only because
+`-g`/UBSan wrote the compiler's notes into the binary (`toolchain`, `process`).
+**Now 36 entries.**
+
+**Where I left off mid-thought:** nothing open; `null.c` done, both learnings
+banked. Next: the two parked payoffs (cast-away-`const`, `&outer_x` shadow-proof).
 
 **2026-11-22 (session 20, FOURTH session of the day — they said "quite fresh" and
 chose to push into new material; I offered a lighter consolidation path (the two
@@ -817,6 +857,8 @@ retires one after I've answered it correctly twice on different days.*
 | A pointer's *type* is a "decoder ring." Explain: an address names only the *starting* byte, so what two things does `*p` need, and which does the type supply? Then — why can you dereference an `int *` but the compiler *rejects* `*vp` on a `void *`? What is a `void *` for, and why does `%p` want one? | 2026-11-22 | — | 0 |
 | C is pass-by-value, so `inc(int n){ n=n+1; }` can't change the caller's `x`. How do you write a function that *does* change a caller's variable, and what exactly does it receive? In `swap(int *a, int *b)`, do you move values through `a`/`b` or `*a`/`*b` — and what would swapping `a`/`b` themselves accomplish? Given all that, why is "C passes pointers by value" not a contradiction with "pointers let you modify the caller"? | 2026-11-22 | — | 0 |
 | What do `-g`, `-O0`, and `-fsanitize=address,undefined` each do in a dev build, and why do you want `-O0` *specifically* when debugging? What is a `.dSYM` bundle, why does macOS create one, and is it source or build output? | 2026-11-22 | — | 0 |
+| You deref two bad pointers by mistake — one is `NULL`, one was never initialized. Which fails loud and *deterministic*, and which can *silently* corrupt memory and still pass every test? Why does that make `NULL` the *safer* bad value — and what two habits follow? How does deref-ing `NULL` differ from touching `None` in Python? | 2026-11-22 | — | 0 |
+| Dereferencing `NULL` is a *runtime* crash — yet the report says `null.c:7`. How can a runtime crash know a source line? What did the compiler/sanitizer do at *compile* time, and what happens to that line number if you strip `-g` *and* the sanitizers? | 2026-11-22 | — | 0 |
 
 ## Phase progress
 
@@ -836,16 +878,16 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-34 entries.
+36 entries.
 
 | Tag | Count |
 | --- | --- |
-| `python-collision` | 18 |
+| `python-collision` | 19 |
 | `types` | 12 |
-| `toolchain` | 10 |
-| `ub` | 7 |
+| `toolchain` | 11 |
+| `ub` | 8 |
+| `memory` | 5 |
 | `standard` | 5 |
 | `integer` | 4 |
-| `memory` | 4 |
-| `process` | 3 |
+| `process` | 4 |
 | `alignment-aliasing` | 2 |
