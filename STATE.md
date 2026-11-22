@@ -11,38 +11,304 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
 
 ## Position
 
-- **Phase:** 1 — Core language, drilled → **in 1A** (everything that isn't
-  a pointer). **Phase 0 is COMPLETE.** 🎉
-- **Task in flight:** none — **structs-as-values + padding, return-by-value, the
-  stack-frame model, `printf`/format strings, and storage duration (`static` vs
-  automatic) are all done** (`p1a/sizes.c`, `retpair.c`, `fmt.c`, `tick.c` all
-  built and run). The **stack frame** was taught head-on (LIFO frames, pushed on
-  call / popped on return, locals' bytes die with the frame) — so the 1A exit
-  test ("draw the stack for a three-deep call chain") is now *close*.
+- **Phase:** 1 — Core language, drilled → **1A COMPLETE ✅, in 1B** (pointers —
+  *the wall*). **Phase 0 is COMPLETE.** 🎉
+- **Task in flight:** none — **1B pointer basics + pointers-as-parameters are
+  done**. Basics (session 19): a pointer is a **typed address** (starting-byte
+  number + compile-time type = the "decoder ring" for how many bytes `*p` reads);
+  `&`/`*` are inverses; `*p = v` mutates the real variable; `sizeof` any pointer =
+  **8 bytes** (address-sized, pointee-independent); `void *` = type **stripped**
+  (can't be dereferenced; cast back to use; `%p` takes `void *`). **Parameters
+  (session 20):** C is **pass-by-value** (callee gets a *copy*, can't touch the
+  caller's variable), so to let a function modify a caller's variable you pass its
+  **address** and dereference it to reach back into the caller's frame; **the
+  pointer itself is still passed by value** (a *copy of the address*, which still
+  points at the same storage) — that's why C has **no true pass-by-reference**.
+  Built `p1b/ptr.c` and `p1b/swap.c` (`swap(int *, int *)` via a temp; `x`/`y`
+  actually exchanged; ran **clean under `-fsanitize=address,undefined`**).
+  **Tooling met this session:** the dev build flags `-g` (emit DWARF debug info →
+  readable reports), `-O0` (no optimization → *accurate* line-mapping/stepping),
+  `-fsanitize=address,undefined` (ASan = runtime memory-bug catcher: OOB,
+  use-after-free/return, double-free, leaks; UBSan = runtime UB catcher). Also:
+  macOS auto-runs `dsymutil` under `-g`, producing a **`swap.dSYM` bundle**
+  (separate debug symbols; build output → `.gitignore` + `clean` should
+  `rm -rf *.dSYM`).
   **Carry-over (not blocking):** the `p0.5/Makefile` still lacks the strict flag
-  set, an `asan` target, and `.PHONY` — round those out early in Phase 1.
-- **Next action:** **continue Phase 1A with `enum` (+ a small state-machine
-  drill), then `const`.** `enum` is a genuinely new construct but mechanically
-  light — the C nuance is that enum constants are *just `int`s* under the hood
-  (named integer constants, 0,1,2… by default), not a distinct safe type like a
-  Python `Enum`; that's the collision to lead with. **First question / Socratic
-  hook:** given `enum State { IDLE, RUNNING, DONE };`, what *actual values and
-  type* does C give `IDLE`/`RUNNING`/`DONE` — and can you accidentally compare or
-  assign one to a plain `int`? Drill: an `enum`-driven state machine (e.g. a tiny
-  turnstile: LOCKED/UNLOCKED transitioning on push/coin) in a new `p1a/` file.
-  After `enum` + `const`: scope/shadowing, then formally drawing the stack for the
-  **exit test**. Also still outstanding from the 1A plan: the unsigned-wraparound
-  / `-Wconversion` drill. (NB: `enum` has now been deferred *twice* — a recall
-  miss took session 13, another took session 15 — so it's genuinely next and
-  overdue. **Session 15 produced no new binary** [a Phase-0 reteach of ground
-  already built]; `enum` is new 1A material and its session **must** end with a
-  binary, no skipping.)
-- **Sessions this phase:** 5
-- **Phase 1A exit test:** can **draw the stack for a three-deep call chain** and
-  say which locals exist at each moment and when each one dies. (ASan becomes a
-  real gate in Phase 2, once things allocate.)
+  set, an `asan` target, `.PHONY`, and a `*.dSYM` clean. **From here on, build with
+  the sanitizers on as a reflex** (nothing allocates until Phase 2, but the habit
+  is the point; it becomes an absolute gate the moment there's heap).
+- **Next action:** pick up the **owed `NULL`** (bumped twice) *and* cash in the two
+  parked payoffs — all small, all reinforcing, good for one session: (1) **`NULL`**
+  — a pointer value meaning "points at nothing" (literally address 0); dereferencing
+  it → the exact SIGSEGV chain they met in Phase 0 (MMU can't translate addr 0 →
+  page fault → SIGSEGV). Worth *seeing* under UBSan/ASan now (it'll name the null
+  deref). (2) **cast-away-`const`** (parked since session 17): take `&x` on a
+  `const int`, cast the `const` off, write through the pointer — observe whether the
+  write "sticks," segfaults, or seems ignored (UB; may be in read-only memory or the
+  value was baked in). (3) **`&outer_x` shadow-proof** (parked session 18): grab
+  `&outer_x` *before* an inner shadowing block, then reach the outer `5` through
+  that pointer from *inside* the block — proving the shadowed variable's storage
+  never moved. **After these:** pointer arithmetic + array→pointer decay (the big
+  one — its own session; the long-standing open thread). Primary source:
+  **K. N. King §11.1–11.5, §12** (arrays/pointers). Still outstanding from 1A: the
+  unsigned-wraparound / `-Wconversion` drill + Makefile strict-flag polish (fold
+  into one tooling session).
+- **Sessions this phase:** 10 (1B: 2)
+- **1B exit test:** given any pointer drill, state for each pointer — what it
+  points at, who owns that memory, and when it dies. (From 1B on: sanitizer-clean,
+  zero leaks, no partial credit.)
 
 ## Last session
+
+**2026-11-22 (session 20, FOURTH session of the day — they said "quite fresh" and
+chose to push into new material; I offered a lighter consolidation path (the two
+parked payoffs) vs the new concept and recommended consolidation, they picked the
+new concept; went fine) — pointers as function parameters.** Same-day, no quiz.
+
+**Covered (the core 1B payoff):**
+- **C is pass-by-value**, always: a function receives a *copy* of each argument in
+  its own frame, so reassigning a parameter is purely local and dies on return —
+  it cannot change the caller's variable. (Built straight on their own session-19
+  mull answer: `inc(x)` leaves `x` at 5.)
+- **To modify a caller's variable, pass its address** (a pointer). The parameter
+  type is a pointer; inside, `*p = …` **dereferences back into the caller's frame**
+  and writes the real variable.
+- **The subtlety (stated explicitly):** the pointer *itself* is still passed **by
+  value** — the callee gets a *copy of the address*, but a copy of an address still
+  points at the same storage, so you reach the original through it. Hence **C has
+  no true pass-by-reference**; you simulate it by passing a pointer by value.
+- **Python parallel used:** `def f(n): n=n+1` (caller's int unchanged — local
+  rebind = pass-by-value) vs `def g(lst): lst.append(1)` (caller's list changed —
+  reached the shared object). C's pointer-parameter makes `g`'s "reach the real
+  thing" explicit via the address.
+- Drew the two-frames diagram (caller's `x`@A0/`y`@B0; swap's `a`/`b` holding
+  *copies* of those addresses; `*a`/`*b` reaching across).
+
+**Predictions (both correct, cold):** (1) `swap(int,int)` leaves the caller
+unchanged — works on copies; (2) the pointer swap must move values via `*a`/`*b`,
+**not** `a`/`b` — swapping the local pointers themselves does nothing the caller
+can see (they die on return). Their phrasing on (2) was spot-on ("swapping a & b is
+all scoped in that function").
+
+**Built — `p1b/swap.c`:** `swap(int *, int *)` with an `int` temp, exchanging
+`*a`/`*b`; `main` declares two ints, prints, calls `swap(&x,&y)`, prints — values
+actually exchanged. **First program built + run under
+`-fsanitize=address,undefined -g -O0`** — ran clean.
+
+**Tooling taught (build/flags — the carve-out, I explained these):** `-g` (DWARF
+debug info, makes reports readable), `-O0` (optimizations off → line-mapping stays
+accurate for debugging/sanitizers; foreshadowed the `-O2` + UB-optimizer open
+thread), `-fsanitize=address,undefined` (ASan runtime memory-bug catcher + UBSan
+runtime UB catcher — the "sanitizers always" rule; `swap` reports nothing, the
+point is the *reflex*). Explained the **`swap.dSYM`** bundle they noticed: macOS
+auto-runs `dsymutil` under `-g` to package debug symbols separately (Mach-O keeps
+them out of the lean executable); build output, belongs in `.gitignore` + `clean`.
+
+**Banked 0 learnings** — nothing was reported as a surprise; the pass-by-value /
+pointer-parameter model is a strong `/learnings` candidate (their words), as is the
+`-g`/`-O0`/sanitizer tooling, left to them.
+
+**Where I left off mid-thought:** nothing open; `swap.c` runs clean. Next session:
+the owed `NULL` + the two parked payoffs (cast-away-`const`, `&outer_x`
+shadow-proof), then pointer arithmetic / array decay.
+
+**2026-11-22 (session 19, third session of the day — they confirmed they were
+"super fresh" and chose to open the pointer wall rather than do lighter carry-over
+work; I flagged the rested-brain concern per my own STATE note, they overrode it,
+and it went fine) — PHASE 1B OPENS: what a pointer *is*.** Same-day, no quiz.
+
+**Covered (the core 1B model — slowed right down, this is *the wall*):**
+- **A pointer is a typed address.** Led with the Python collision as the frame:
+  in Python *every* variable is already a hidden reference (`b = a` shares one
+  object, address untouchable); in C values are direct bytes (they knew this from
+  struct-copy), so a pointer is the **opt-in**, explicit, manipulable reference —
+  "I want the *location*, not the value." `&x` = address-of, `*p` = dereference
+  (follow the address), and they're **inverses** (`*(&x) == x`).
+- **The handle:** `*p = 99` walks to `x`'s address and overwrites `x`'s storage —
+  so plain `x` reads 99 afterward. One variable reached through another. (Flagged
+  this as the seed of pointer-as-function-parameter, next session.)
+- **The type is a "decoder ring."** The big clarifying beat: an **address names
+  only the *starting* byte** — it carries no length. `*p` needs two things: *where
+  to start* (the address `p` holds) and *how many bytes to read + how to interpret*
+  (the **type**, compile-time, not stored anywhere). `int *` → read 4 bytes as int;
+  `char *` → read 1 byte as char. They half-stated this themselves ("we only know
+  the starting address, so the type helps?") — I confirmed with the stadium-seat
+  analogy (a seat number points at one seat; the booking *type* says how many
+  seats the group spans).
+- **`sizeof(int *) == sizeof(char *)` — prediction.** They correctly reasoned
+  "same," because a pointer just stores *one starting address*; the pointee type
+  changes how `*p` reads, never the pointer's own size. Confirmed = **8** on their
+  arm64 (64-bit) Mac. (Named the classic trap they *avoided*: thinking `int *`=4,
+  `char *`=1 — confusing pointer with pointee.)
+- **`void *`** (came up from the `%p` cast; taught as a natural corollary): a
+  pointer with the **type stripped off** — address, *no* decoder ring. The
+  consequence that makes it click: **you cannot dereference a `void *`** (`*vp` is
+  a compile error — the compiler has no "how many bytes"), which is just the
+  decoder-ring rule run backwards. To use it, cast back to a typed pointer. It's
+  for **generic** code (foreshadowed `malloc`/`memcpy`/the bubble-sort comparator).
+  And `%p` is specified to take `void *` (a bare address, no type) — which is why
+  the "correct" print is `printf("%p", (void *)&x)`.
+
+**Built — `p1b/ptr.c`** (clean under `-Wall -Wextra -std=c11`): declared
+`int x = 5; int *p = &x;`, printed `&x` and `p` (same address, `0x16f43eb9c`),
+`*p` (5), then `*p = 99` → plain `x` printed 99, and `sizeof(int *)`/`sizeof(char *)`
+both 8. First draft printed `&x`/`p` with bare `int *` under `%p` (built clean, but
+I flagged it as the *same class* of format mismatch as `%d`-on-`double`, just
+benign); they **updated it to cast both to `(void *)`** — rebuilt clean.
+
+**Banked 0 learnings** — but the **decoder-ring / `void *`-can't-deref** insight
+is a strong `/learnings` candidate if it felt like it clicked; left to them. The
+`sizeof(ptr)` = pointee-independent point is another. Nothing was reported as a
+surprise.
+
+**Where I left off mid-thought:** they didn't give the final one-sentence
+verbal check ("why `*p` works on `int *` but `*vp` is rejected on `void *`"), but
+the cast they wrote proves they got it — not an open gap. `ptr.c` runs. Next
+session: **pointers as function parameters** (`swap`), plus the owed `NULL`.
+
+**2026-11-22 (session 18, same-day continuation started after session 17's wrap,
+rolled past midnight) — scope/shadowing, then the 1A exit test → 1A COMPLETE.**
+Same-day, so no quiz.
+
+**Covered (scope/shadowing — mechanically light, moved briskly):**
+- C has **block scope**: a name declared inside `{}` (an `if` body, a `for`) dies
+  at the closing `}`. **Python collision:** Python has **no block scope** — a name
+  bound inside an `if`/`for` leaks to the whole enclosing function (LEGB = Local is
+  *function*-level). So `for (int i…){}` then reading `i` after the loop is a
+  **compile-time** error in C (`use of undeclared identifier 'i'`), while Python's
+  `print(i)` after the loop is fine. They predicted this cold, correctly.
+- **Shadowing:** an inner block may redeclare an outer name; inside, the name
+  resolves to the *nearest* (inner) one; the outer is **unreachable by that name
+  but not destroyed** — it's still alive, two distinct objects/addresses coexist.
+  They got all of this unprompted.
+- **`-Wshadow` is opt-in and NOT in `-Wall`/`-Wextra`** — the classic silent
+  footgun (declare a fresh inner `total`, write to it, outer `total` stays 0, no
+  diagnostic) compiles clean under their usual flags. The flag is in the deferred
+  Makefile strict set. **They chose to skip the hands-on shadow drill** ("too easy,
+  I understand scope and lifetime") — allowed, since they'd predicted every outcome
+  correctly; the binary-every-session rule is satisfied by `chain.c` below.
+
+**The 1A exit test — `p1a/chain.c` (built + run):** `main → a → b`, three deep,
+each frame with a local; `b` prints at the bottom. Notable: they wrote `a` so that
+`b()` is called **before** `int x = 20;` is declared — which made the exit test
+sharper than the generic case.
+
+**Exit-test gate (passed, with one reteach):**
+- Frames + teardown: correct cold — all three frames (`main`+`a`+`b`) coexist at
+  `b`'s `printf`; `a`'s frame is alive the whole time `b` runs (it's waiting on
+  `b`); LIFO teardown `b`→`a`→`main`. Also self-corrected a slip (they said "main's
+  print" — `main` has no `printf`, it just falls off the end → returns 0).
+- **The reteach (load-bearing):** asked whether, at `b`'s `printf` moment, `a`'s
+  `x` **(a)** doesn't exist yet or **(b)** exists but holds garbage. They first
+  picked **(a)** ("x doesn't exist, we called b before it"). Retaught using their
+  own words — they'd already said *"a's frame is created"* on entry to `a`; the
+  frame **is** the storage for all of `a`'s locals (size fixed by the compiler, SP
+  dropped once on entry), so `x`'s **slot exists from frame creation**, holding
+  **garbage**, until the `= 20` line runs (after `b` returns). The answer is **(b)**.
+  Separated three axes: **storage** (bytes exist — from block entry), **scope /
+  name-visibility** (textual — begins at the declaration line, so you can't *name*
+  `x` at the `b()` call site), **initialization** (runtime — when control reaches
+  the line). Re-probe landed: "if `a` printed `x` before the init line → UB, an
+  unpredictable number." Gate closed.
+
+**Banked 0 learnings so far** — but the **storage-vs-initialization** correction
+is a genuine belief-replacement (they held "declared-after = doesn't exist yet")
+and is a strong `/learnings` candidate if it felt like a surprise; left to them to
+write in their own words. Nothing else surprised them.
+
+**Where I left off mid-thought:** nothing open; 1A is closed, `chain.c` runs, the
+exit test passed. Next session **opens 1B (pointers)** — a fresh rested-brain
+session, explicitly not a same-day continuation.
+
+**2026-11-21 (session 17) — `const` on plain values.** 3-day gap, so the quiz ran
+properly (3 cold, oldest-asked first).
+
+**Recall quiz:**
+- **Q1 (name the four stages, consume/produce each):** **pass** — all four in
+  order with the right consume/produce. One imprecision tightened: the **compiler
+  produces assembly text (`.s`)**, not an object file; the **assembler** produces
+  the `.o`. They'd written "assembly object file," blurring the 2→3 handoff.
+  Streak → 2, **retired** (twice-correct on different days; the `.s`/`.o` blur is a
+  tightening, not a miss — the pipeline is solid).
+- **Q2 (`return 3` but `$?` is 130 — decompose):** **clean recovery** from the
+  earlier miss — `130 = 128 + 2`, SIGINT, Ctrl-C killed it before the return ran.
+  Streak 0 → 1.
+- **Q3 (`file:line` diagnostic vs `ld:` — which stopped the build, which stage):**
+  **partial.** Got the **stage mapping right** (`file:line` → compiler, `ld:` →
+  linker) but was shaky on **stage vs severity** — I under-asked it (dropped the
+  "warning") so this is partly on me. Retaught the nuance: **the prefix names the
+  stage, not whether it stopped the build** — that's `warning:` vs `error:`; one
+  build's output can carry a compiler *warning* AND a linker *error* at once
+  because the warning didn't halt the compile. Streak stays 0 (partial).
+
+**Covered (new — `const`, mechanically light, one real nuance):**
+- A write through a `const`-qualified name is a **compile-time error** (clang:
+  `cannot assign to variable 'x' with const-qualified type`) — enforced by
+  *refusing to build*, nothing at runtime. **Python collision:** Python has no
+  real `const`, only the ALL_CAPS *convention* nothing enforces (`MAX = 6` just
+  rebinds).
+- **The nuance they nailed unprompted:** `const` is a **promise made to the
+  compiler, not a lock on the storage**. It does not protect those bytes from
+  another path reaching them. Consequence (foreshadowed, not built): you can
+  **cast the `const` away** and write through the resulting pointer — the compiler
+  lets it compile, but if the object was genuinely declared `const`, the write is
+  **UB** (may sit in read-only memory → segfault; or the compiler baked in the old
+  value → your write "vanishes" on every read). Named the recurring C shape: *the
+  compiler trusts a promise it can't verify at runtime, and breaking it is UB, not
+  a caught error* (same shape as `printf`'s format string).
+
+**Built — `p1a/constness.c`:** declared a `const int`, assigned to it on the next
+line, read the exact compile error, confirmed the stage (`file:line`, compiler),
+then commented the bad line out so it builds and prints. Error landed exactly as
+predicted (compile-time, build refused).
+
+**Scope-cut mid-session (good call):** the planned drill had a part 2 —
+*defeat `const` by casting it away* — which needs pointer syntax (`&`, `*`, casts)
+they haven't drilled. That's **1B** material; I'd reached past where they are. Cut
+it to the pure-1A part (declare, assign, read the error) and **parked the
+cast-away-`const` demo as 1B's opening treat** (the honest way to meet pointers,
+with K&R-King §11.1–11.2 / §7.4 as the source, not from me). Kept the
+one-concept-per-session discipline tight — their own retro flags the
+overwhelm-when-piled-on risk.
+
+**Banked 0 learnings** — nothing surprised them; `const` matched predictions. No
+forced entry.
+
+**Where I left off mid-thought:** nothing open; `constness.c` builds and runs,
+error confirmed. Next is **scope/shadowing**, then the 1A exit test.
+
+**2026-11-18 (session 16, same-day continuation after session 15's wrap) —
+`enum` + a state-machine drill.** Same-day, no quiz.
+
+**Covered (mechanically light + one real Python collision):**
+- An `enum` makes **named integer constants** — `enum State { LOCKED, UNLOCKED };`
+  gives `LOCKED`==0, `UNLOCKED`==1 (auto-numbered from 0, overridable like
+  `{ A=5, B, C }` → 6,7). An `enum`-typed variable is just a single `int`; there's
+  **no array/object stored** for the "set" — the names vanish into int literals at
+  compile time (like scoped, auto-numbered `#define`s).
+- **Python collision (the slow-down):** a C `enum` has **no runtime type safety** —
+  `int x = UNLOCKED;` is fine, and `enum State s = 99;` compiles and stores 99, a
+  state the enum never named. Opposite of Python's `Enum` (distinct guarded member
+  objects). Payoff of C enums = readability + a `-Wswitch` warning on a missed
+  `switch` case, **not** safety.
+
+**Built — `p1a/turnstile.c`:** two states (LOCKED/UNLOCKED) + two inputs
+(COIN/PUSH); `StateCalc(enum State, enum Input)` returns the next state; `main`
+drives a fixed sequence, printing `1,0,1,0` (correct).
+
+**Bug hit + fixed (a recurrence):** first version of `StateCalc` was an
+`if/else-if` chain with **no final `else`**, so it could fall off the end of a
+non-`void` function returning nothing → `-Wreturn-type` warning; using that result
+is **UB**. Reconnected to the known rule: falling off the end is defined *only* for
+`main` (returns 0), UB for every other function. Fixed with a final
+`else { return current_state; }`. Also upgraded the signature from `int` params to
+**`enum`-typed** params/return — readable, and free because enums are ints anyway.
+
+**Banked 1 learning:** a C `enum` is named int constants with no runtime guard,
+unlike Python's `Enum` (`types`, `python-collision`).
+
+**Where I left off mid-thought:** nothing open; `turnstile.c` clean under
+`-Wall -Wextra` and correct. Next is `const`.
 
 **2026-11-18 (session 15) — a recall miss on `#include` vs `import` became the
 session (reteach + consolidation); no new binary.** Overnight gap, so the quiz
@@ -474,9 +740,17 @@ should offer to close one of these when a session has slack at the end.*
 - **UB and the optimiser.** I know "the compiler may assume UB never happens" as
   a sentence, not as something I've watched happen. Revisit at `-O2` in Phase 2.
 - **Not banked:** the second rule from the linker output — *the prefix on a
-  diagnostic names the stage that produced it, and a warning and an error in one
-  output can come from different stages.* Offered twice, not written up. It's in
-  the recall queue anyway.
+  diagnostic names the **stage** that produced it (not whether it stopped the
+  build — that's `warning:` vs `error:`), and a warning and an error in one output
+  can come from different stages.* Offered **three** times now (retaught again in
+  session 17's Q3), still not written up. It's in the recall queue anyway — worth
+  pushing them to bank it next time it surfaces.
+- **Cast-away-`const` demo — parked for 1B.** Defeating `const` (take the address,
+  cast off the `const`, write through the pointer → UB if the object was truly
+  `const`) needs pointer syntax they haven't drilled. Cut from session 17; it's
+  the natural *first* payoff when pointers land in 1B (sources: King §11.1–11.2
+  for `&`/`*`, §7.4 for casts). They already understand *why* it's UB — they just
+  need the mechanics.
 - **Array → pointer "decay", and `char *p = "..."`.** Keep hearing that passing an
   array to a function turns it into a pointer (so `sizeof` starts lying), and that
   a string literal assigned to `char *` is read-only and writing to it is UB — but
@@ -497,14 +771,13 @@ retires one after I've answered it correctly twice on different days.*
 
 | Question | Added | Last asked | Correct streak |
 | --- | --- | --- | --- |
-| Name the four stages between `hello.c` and `hello`. What does each one consume and produce? | 2026-10-18 | 2026-11-08 | 1 |
 | `clang -E hello.c` turns 4 lines into 599. What is in those lines — and what is definitely *not*? | 2026-10-18 | 2026-11-16 | 1 |
 | Your binary is arm64 and your EC2 box is arm64. Why won't it run there? | 2026-10-18 | 2026-11-16 | 1 |
 | Give three ways `#include` differs from `import`. | 2026-10-18 | 2026-11-18 | 0 — **got 1/3, retaught** (had shape-vs-code; missed caching + namespace again — the two sticky ones) |
 | Why does dereferencing `NULL` usually crash, and what is doing the checking? | 2026-10-18 | 2026-11-15 | 0 — **missed cold, retaught** (said "compiler"; it's the MMU → page fault → kernel → SIGSEGV) |
 | `printf` is handed a value. How does it work out what type it is — and what happens when you're wrong? | 2026-10-18 | 2026-11-17 | 0 — **missed cold, retaught** (said "compile time"; really: variadic, trusts the format string, no runtime type detection, mismatch is UB) |
-| A program returns `3`, but `echo $?` says `130`. What happened, and what does `130` decompose into? | 2026-10-18 | 2026-11-08 | 0 — **missed cold, retaught** (said `127+3`; it's `128+2` = killed by SIGINT) |
-| A build prints a warning with a `file:line` and an error prefixed `ld:`. Which one stopped the build, and what does each prefix tell you? | 2026-10-18 | 2026-11-08 | 1 |
+| A program returns `3`, but `echo $?` says `130`. What happened, and what does `130` decompose into? | 2026-10-18 | 2026-11-21 | 1 — recovered (`128+2` = SIGINT) |
+| A build prints a warning with a `file:line` and an error prefixed `ld:`. Which one stopped the build, and what does each prefix tell you? | 2026-10-18 | 2026-11-21 | 0 — **partial**: got the stage mapping (file:line→compiler, ld:→linker) but shaky on *stage vs severity* (prefix = stage; `warning:`/`error:` = whether it stopped the build); retaught |
 | You rename `main` to `run` and rebuild. Which stage fails — and will the message name a file and line, or a symbol? | 2026-10-18 | — | 0 |
 | Is `printf`'s machine code copied into your binary when you link? If not, what is, and when does the real thing arrive? | 2026-10-18 | 2026-11-16 | 0 — **partial**: got "not copied, arrives at runtime" but muddled the two linkers (static leaves a stub; `dyld` resolves the `.dylib` at launch) |
 | Which of the four stages is the only one that understands C? What does that imply about where a syntax error can come from? | 2026-10-18 | 2026-11-08 | 1 |
@@ -536,6 +809,14 @@ retires one after I've answered it correctly twice on different days.*
 | A function's `static int cnt = 0; cnt++;` prints 1,2,3 across three calls, not 1,1,1. Where does `cnt` physically live, on which call does the `= 0` actually run, and how do its *scope* and its *lifetime* differ? | 2026-11-17 | — | 0 |
 | You `#include` the same struct-defining header twice in one `.c`. Is the duplicate-definition error from the compiler or the linker — and why can the *other* one not catch it? | 2026-11-18 | — | 0 |
 | Two failure modes both say "redefinition": same thing pasted twice vs two different things with one name. Which is which, which does an include guard fix, and what fixes the other? | 2026-11-18 | — | 0 |
+| `enum State { LOCKED, UNLOCKED };` — what value and type do the two names get? Is an `enum`-typed variable a safe distinct type, or can you store `99` into it and assign `LOCKED` straight to an `int`? How does that differ from Python's `Enum`? | 2026-11-18 | — | 0 |
+| `const int x = 5; x = 6;` — does it fail, and at *which stage* (compiler or runtime)? Is `const` a hardware lock on those bytes or just a promise to the compiler? If you cast the `const` away and write through a pointer, what happens — and why is that UB, not a caught error? | 2026-11-21 | — | 0 |
+| In C, `for (int i = 0; …){}` then reading `i` *after* the loop — compile or error, and why? How does that differ from Python, and what *one* word names the thing C has that Python lacks here? When you shadow an outer name in an inner block, is the outer variable destroyed or just unreachable — and is `-Wshadow` on under `-Wall -Wextra`? | 2026-11-22 | — | 0 |
+| A function calls another *before* declaring one of its own locals. At the moment the inner call runs, does that not-yet-declared local **(a)** not exist, or **(b)** exist holding garbage? Defend it in terms of *storage* (when the bytes exist) vs *initialization* (when a value lands) vs *scope* (when you can name it). What do you get if you read it before the init line? | 2026-11-22 | — | 0 — **needs cold re-confirm** (picked (a) in session 18, retaught to (b); the storage-vs-init split is load-bearing for all of 1B/2) |
+| `int x = 5; int *p = &x;` — what does `p` actually store? What are `&` and `*`, and what's their relationship? After `*p = 99`, what does plain `x` print, and *why*? And `sizeof(int *)` vs `sizeof(char *)` — same or different, and what's the trap in thinking they'd differ? | 2026-11-22 | — | 0 |
+| A pointer's *type* is a "decoder ring." Explain: an address names only the *starting* byte, so what two things does `*p` need, and which does the type supply? Then — why can you dereference an `int *` but the compiler *rejects* `*vp` on a `void *`? What is a `void *` for, and why does `%p` want one? | 2026-11-22 | — | 0 |
+| C is pass-by-value, so `inc(int n){ n=n+1; }` can't change the caller's `x`. How do you write a function that *does* change a caller's variable, and what exactly does it receive? In `swap(int *a, int *b)`, do you move values through `a`/`b` or `*a`/`*b` — and what would swapping `a`/`b` themselves accomplish? Given all that, why is "C passes pointers by value" not a contradiction with "pointers let you modify the caller"? | 2026-11-22 | — | 0 |
+| What do `-g`, `-O0`, and `-fsanitize=address,undefined` each do in a dev build, and why do you want `-O0` *specifically* when debugging? What is a `.dSYM` bundle, why does macOS create one, and is it source or build output? | 2026-11-22 | — | 0 |
 
 ## Phase progress
 
@@ -555,12 +836,12 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-33 entries.
+34 entries.
 
 | Tag | Count |
 | --- | --- |
-| `python-collision` | 17 |
-| `types` | 11 |
+| `python-collision` | 18 |
+| `types` | 12 |
 | `toolchain` | 10 |
 | `ub` | 7 |
 | `standard` | 5 |
