@@ -62,23 +62,81 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
   captures a storage address independent of names**, so one saved before the shadow
   reaches straight past it. Built `p1b/shadowptr.c`. **Both parked payoffs are now
   closed.**
-- **Next action:** **pointer arithmetic + array→pointer decay** — the big 1B topic,
-  its own session (the long-standing open thread). What `p + 1` actually adds (it
-  scales by `sizeof(*p)`, not 1 byte — the "decoder ring" again), array indexing as
-  pointer arithmetic (`a[i]` ≡ `*(a + i)`), and **array→pointer decay**: passing an
-  array to a function hands over a bare pointer, so `sizeof` stops reporting the
-  array's size and reports a pointer's (8). *Partly previewed* already (session 22's
-  string literal showed a literal decaying to an address of its first char + the
-  read-only-write UB). Primary source: **K. N. King §11.1–11.5, §12**
-  (arrays/pointers). Still outstanding from 1A (fold into one tooling session): the
+- **Pointer arithmetic + array→pointer decay — DONE (session 24):** the big 1B
+  topic. `p + 1` advances the address by `sizeof(*p)` bytes (one *element*, not one
+  byte — the "decoder ring" again: `int *`+1 steps 4, `char *`+1 steps 1); the
+  arithmetic produces a *new address*, never touches the pointed-at value, and `p+1`
+  as an expression doesn't even move `p` (reassign for that). Array indexing is pure
+  sugar: **`a[i]` ≡ `*(a + i)`** (so `2[a]` even compiles). **Decay:** passing an
+  array to a function copies only the *address* (pass-by-value) and strips the array
+  type → inside, `sizeof(arr)` is `8` (pointer), not the array's size; `int arr[]`
+  param is secretly `int *arr` and any `[n]` is ignored. Consequence (the universal
+  idiom): the length can't be recovered after decay, so it must be passed as a
+  separate parameter — computed in the caller where the array is still real. Built
+  `p1b/arith.c`. Banked 1 learning. **Note:** hex-arithmetic slip (added decimal 12
+  to `0x1000` → wrote `0x1012`; correct is `0x100C`) — pointer logic was right, just
+  base-16 addition; worth a glance next time addresses show up.
+- **Next action:** **one more pointer-walking drill to consolidate** (pick when
+  teaching): e.g. a string length / reverse by walking a `char *` to `'\0'`, or a
+  sum/min over an array via a `(ptr, len)` function — exercises arithmetic + the
+  length idiom together before moving on. The ROADMAP 1B drill list (strlen/strcpy/
+  strncpy/strcmp/memcpy/memmove/reverse/tokeniser/atoi/bitset/generic swap/bubble
+  sort over `void *`) is the menu. Primary source: **K. N. King §11, §12, §13**
+  (strings). Still outstanding from 1A (fold into one tooling session): the
   unsigned-wraparound / `-Wconversion` drill + Makefile strict-flag/`asan`/`.PHONY`
   polish.
-- **Sessions this phase:** 13 (1B: 5)
+- **Sessions this phase:** 14 (1B: 6)
 - **1B exit test:** given any pointer drill, state for each pointer — what it
   points at, who owns that memory, and when it dies. (From 1B on: sanitizer-clean,
   zero leaks, no partial credit.)
 
 ## Last session
+
+**2026-11-23 (session 24, same-day — SEVENTH in the 2026-11-22→23 stretch; I
+offered the rested-brain fork, 'lighter tooling vs the big topic,' and recommended
+lighter, but they chose to push into the big topic and it went well) — pointer
+arithmetic + array→pointer decay (the heart of 1B).** Same-day, so no quiz.
+
+**Covered (the big 1B topic — spent the depth here; went Socratic beat by beat):**
+- **Pointer arithmetic scales by element size.** `p + 1` advances the *address* by
+  `sizeof(*p)` bytes — one *element*, not one byte. Same two pointers at `0x1000`:
+  `int *` + 1 → `0x1004`, `char *` + 1 → `0x1001`. Same "decoder ring" as session 19
+  (type → how many bytes), now governing the *step* as well as the *read*.
+- **Two misconceptions corrected along the way:** (1) they thought `p + 1` operated
+  on the pointed-at *value* and might "lose" `x` — clarified arithmetic is on the
+  *address*, produces a new address value, never touches `x`; and `p + 1` as an
+  expression doesn't even move `p` (finger-on-boxes analogy; moving the finger ≠
+  changing a box). (2) they thought `char *` + 1 would "fail" — no, it's the most
+  basic step (1 byte).
+- **`a[i]` ≡ `*(a + i)`.** The brackets are pure sugar over pointer arithmetic; the
+  compiler rewrites `a[2]` → `*(a + 2)`. Showed `2[a]` compiles as the proof. They
+  predicted `a + 2` → `0x2008`, value `30`, and `*(a+2)` → `30`, cleanly.
+- **Array→pointer decay.** Passing an array copies only the *address* (pass-by-value)
+  and strips the array type → inside the callee `sizeof(arr)` is `8` (a pointer),
+  not the array's bytes. `int arr[]` / `int arr[4]` params are secretly `int *arr`
+  (the size is ignored). **They reasoned this out themselves** before I named it.
+  Consequence = the universal C idiom: length is lost at the boundary, so it must be
+  passed as a separate parameter, computed in the caller where the array is still
+  real (tied to `argc`/`argv`, and to session 7 'an array doesn't store its length').
+
+**Built — `p1b/arith.c`:** `sizeof(a)` in `main` = 16; walked the array with
+`*(a+i)`; a `size_arr_inside` fn returned `sizeof(arr)` = **8** (decay, live). Then,
+on my push, added the crux: a `print_ele1` that computed its loop bound *inside* via
+`sizeof(arr)/sizeof(*arr)` and **printed only 2 of 4 elements** (8/4=2) — the failure
+seen live — and a fixed `print_ele2(int *arr, size_t s)` taking the length, called as
+`print_ele2(a, sizeof(a)/sizeof(*a))` (count computed in `main`, pre-decay) → all 4.
+Discussed `int *arr` vs `int arr[]` param spelling (identical to compiler; steered to
+`*arr` as the honest form). Minor nits flagged: stray `;` after `for` braces.
+
+**Banked 1 learning** (via `/learnings`, their words, lightly tightened): passing an
+array to a function decays it to a pointer → the array type/length is lost at the
+boundary, so pass the length as a separate parameter (`memory`, `types`,
+`python-collision`). **Now 39 entries.**
+
+**Where I left off mid-thought:** nothing open; `arith.c` builds and demonstrates
+arithmetic + `a[i]`≡`*(a+i)` + decay + the length idiom. Next: a consolidating
+pointer-walking drill (string walk to `'\0'`, or a `(ptr,len)` reduce) before moving
+deeper into 1B's string drills.
 
 **2026-11-23 (session 23, same-day continuation right after session 22 — kept
 short and consolidating) — the `&outer_x` shadow-proof (last parked payoff).**
@@ -982,6 +1040,8 @@ retires one after I've answered it correctly twice on different days.*
 | You cast the `const` off a pointer and write through it. The *same* mistake made one program silently keep the old value and another crash (SIGBUS). What single thing decides which you get — and why does the write *compile* either way? How does the crash's SIGBUS differ from a `NULL` SIGSEGV? | 2026-11-23 | — | 0 |
 | After `*p = 99` through a cast-away-`const` pointer, `*p` prints `99` but plain `x` prints `5` — *same address, same run*. How is that possible? What did the compiler do to the read of `x`, and what does that tell you about what `const` actually is? | 2026-11-23 | — | 0 |
 | You save `p = &x`, then open an inner block that declares its own `x = 99` (shadowing). Inside the block: what do `x` and `*p` each print, and are `&x` and `p` the same address? What does the disagreement prove about what shadowing does — and why can a pointer saved *before* the block still reach the outer variable whose name is now hidden? | 2026-11-23 | — | 0 |
+| `int *p` and `char *q` both hold the *same* address `0x1000`. What do `p + 1` and `q + 1` evaluate to, and what single property decides the difference? Does `p + 1` change the value `p` points at, or move `p` itself? And how does `a[i]` relate to `*` and `+`? | 2026-11-23 | — | 0 |
+| You pass `int a[4]` to `void f(int *arr)` and write `sizeof(arr)` inside `f`. What do you get, and why isn't it 16? What got copied at the call, what happened to the array's *type*, and what must the caller therefore also pass? Where must the length be computed, and why not inside `f`? | 2026-11-23 | — | 0 |
 
 ## Phase progress
 
@@ -1001,15 +1061,15 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-38 entries.
+39 entries.
 
 | Tag | Count |
 | --- | --- |
-| `python-collision` | 19 |
-| `types` | 13 |
+| `python-collision` | 20 |
+| `types` | 14 |
 | `toolchain` | 12 |
 | `ub` | 10 |
-| `memory` | 6 |
+| `memory` | 7 |
 | `standard` | 5 |
 | `integer` | 4 |
 | `process` | 4 |

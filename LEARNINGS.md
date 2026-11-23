@@ -519,3 +519,10 @@ recall queue. It is also the source for `/teach`'s quiz.
 - **Found out by:** `p1b/constcheck.c` — after `*p = 99` (where `p` was `(int *)&x`), `*p` printed `99` but plain `x` printed `5`, *same address `0x16b4fe680`, same run*. Because `x` was declared `const int x = 5`, the compiler trusted the promise and baked the literal `5` straight into the `printf` — it never emitted a read from memory for the name. `*p` reads memory (99); `x` was replaced by the cached literal (5). `const` bought zero runtime protection of the storage — it's a promise the compiler *builds on*, and breaking it silently desyncs memory from code (UB).
 - **When:** 2026-11-23 · P1B
 - **Tags:** `ub`, `types`, `toolchain`
+
+## Passing an array to a function makes it decay to a pointer to its first element — the array type (and with it the length) is lost at that boundary, so the function must be given the length as a separate parameter
+
+- **I used to assume:** an array arrives in a function still knowing its own size — that `sizeof(arr)` inside the function reports the whole array, the way it does where the array is declared.
+- **Found out by:** `p1b/arith.c` — `print_ele1` set its loop bound to `sizeof(arr)/sizeof(*arr)` *inside* the function and printed only **2** of 4 elements: `arr` had decayed to `int *`, so `sizeof(arr)` was `8` (a pointer), not `16` (the array) → `8/4 = 2`. Only passing the count explicitly — `print_ele2(a, sizeof(a)/sizeof(*a))`, where the `sizeof` is computed back in `main` while `a` is still a real array — looped all 4. (Ties to 2026-11-14: a C array doesn't store its own length.)
+- **When:** 2026-11-23 · P1B
+- **Tags:** `memory`, `types`, `python-collision`
