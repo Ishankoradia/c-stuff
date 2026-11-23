@@ -41,25 +41,145 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
   set, an `asan` target, `.PHONY`, and a `*.dSYM` clean. **From here on, build with
   the sanitizers on as a reflex** (nothing allocates until Phase 2, but the habit
   is the point; it becomes an absolute gate the moment there's heap).
-- **Next action:** cash in the **two parked payoffs** — both small, both reinforce
-  pointers *and* revisit earlier topics, good for one session: (1) **cast-away-
-  `const`** (parked since session 17): take `&x` on a `const int`, cast the `const`
-  off, write through the pointer — observe whether the write "sticks," segfaults, or
-  seems ignored (UB; the object may be in read-only memory, or the value was baked
-  in at reads). (2) **`&outer_x` shadow-proof** (parked session 18): grab `&outer_x`
-  *before* an inner shadowing block, then reach the outer `5` through that pointer
-  from *inside* the block — proving the shadowed variable's storage never moved
-  (storage ≠ name-visibility, made concrete). **After these:** pointer arithmetic +
-  array→pointer decay (the big 1B topic — its own session; the long-standing open
-  thread). Primary source: **K. N. King §11.1–11.5, §12** (arrays/pointers). Still
-  outstanding from 1A: the unsigned-wraparound / `-Wconversion` drill + Makefile
-  strict-flag polish (fold into one tooling session).
-- **Sessions this phase:** 11 (1B: 3)
+- **Cast-away-`const` payoff — DONE (session 22):** the parked session-17 demo,
+  finally cashed in. Took `&x` on a `const int` local, cast the `const` off the
+  pointer type, wrote `99` through it, and watched **two faces of the same UB**:
+  (a) on a `const` *local* (writable stack) the write **silently stuck** — `*p`
+  read `99` while plain `x` still read `5` at the *same address*, because the
+  compiler had **baked the literal `5`** into the read (it trusted the `const`
+  promise and never reloaded); (b) writing through a pointer to a **string literal**
+  (`"hello"`, read-only rodata) **crashed** — ASan reported a `WRITE` access,
+  **SIGBUS** at `strlit.c:5`. Nailed the core correction: the cast **always makes it
+  compile** (the compiler checks only the laundered *type* at the write site, never
+  traces provenance); the real action is at *runtime*, and placement (writable stack
+  vs read-only rodata) decides stick-vs-crash. `const` = compile-time promise, not a
+  storage lock. Built `p1b/constcheck.c` + `p1b/strlit.c`.
+- **`&outer_x` shadow-proof — DONE (session 23):** the last parked payoff, cashed
+  in. Saved `p = &x` *before* an inner block that shadowed `x` with its own `x = 99`;
+  inside the block `x`→99 (inner), `*p`→5 (outer storage, untouched), and `&x`
+  (inner) ≠ `p` (outer) — two distinct addresses. Proved **shadowing hides the
+  *name*, not the *storage*** (session-18 sentence, now seen), and that **a pointer
+  captures a storage address independent of names**, so one saved before the shadow
+  reaches straight past it. Built `p1b/shadowptr.c`. **Both parked payoffs are now
+  closed.**
+- **Next action:** **pointer arithmetic + array→pointer decay** — the big 1B topic,
+  its own session (the long-standing open thread). What `p + 1` actually adds (it
+  scales by `sizeof(*p)`, not 1 byte — the "decoder ring" again), array indexing as
+  pointer arithmetic (`a[i]` ≡ `*(a + i)`), and **array→pointer decay**: passing an
+  array to a function hands over a bare pointer, so `sizeof` stops reporting the
+  array's size and reports a pointer's (8). *Partly previewed* already (session 22's
+  string literal showed a literal decaying to an address of its first char + the
+  read-only-write UB). Primary source: **K. N. King §11.1–11.5, §12**
+  (arrays/pointers). Still outstanding from 1A (fold into one tooling session): the
+  unsigned-wraparound / `-Wconversion` drill + Makefile strict-flag/`asan`/`.PHONY`
+  polish.
+- **Sessions this phase:** 13 (1B: 5)
 - **1B exit test:** given any pointer drill, state for each pointer — what it
   points at, who owns that memory, and when it dies. (From 1B on: sanitizer-clean,
   zero leaks, no partial credit.)
 
 ## Last session
+
+**2026-11-23 (session 23, same-day continuation right after session 22 — kept
+short and consolidating) — the `&outer_x` shadow-proof (last parked payoff).**
+Same-day, so no quiz.
+
+**Covered (a small consolidating payoff — ties new pointer knowledge back to
+session-18 scope/shadowing):**
+- **The setup:** outer `x = 5`; save `p = &x` *before* opening an inner block;
+  inner block declares its own `x = 99` (the shadow); inside the block print `x`,
+  `*p`, `&x`, `p`.
+- **They predicted all four correct, cold:** `x`→99 (name resolves to nearest, the
+  inner one), `*p`→5 (p still holds the outer address, whose storage was never
+  touched), and `&x` (inner) ≠ `p` (outer) — two distinct addresses.
+- **The payoff landed:** shadowing hides the **name**, not the **storage** — the
+  outer `x`'s bytes sat unchanged at their address the whole time the inner block
+  ran; only the *name* `x` was unreachable inside. And a **pointer captures a
+  storage address, independent of names**, so one saved before the shadow reaches
+  straight past it. Same storage-vs-name axis as the `chain.c` exit test, new
+  disguise. Confirmed a bare `{ }` block makes a new scope with no function needed
+  (the C-vs-Python scope point from session 18).
+
+**Built — `p1b/shadowptr.c`:** outer `x`, `p=&x`, bare inner block with `x=99`,
+four prints; inner `&x` ≠ `p` while `*p` still read `5`, as predicted.
+
+**One mechanical slip worth noting (not a learning — no model change):** on the
+`%p` prints they first left `p` uncast, then *over*-corrected by casting `*p` (an
+int **value**) to `(void *)` while printing it with `%d`. Untangled it into a clean
+rule: **an address printed with `%p` → cast to `(void *)`; a value printed with
+`%d` → no cast** (`&x`/`p` are addresses; `*p` is a value). Final file is correct.
+Watch this habit — it's the same `%p`-wants-`void *` point from `ptr.c` (session 19)
+recurring.
+
+**Banked 0 learnings** — the shadow-proof confirmed every prediction, nothing
+surprised them; offered `/learnings`, they passed. No forced entry.
+
+**Where I left off mid-thought:** nothing open; `shadowptr.c` builds and behaves as
+predicted, both parked payoffs now closed. Next session is the big 1B topic:
+**pointer arithmetic + array→pointer decay** (its own session).
+
+**2026-11-23 (session 22, began as a same-day continuation of the 2026-11-22 run
+and rolled past midnight — SIXTH in that stretch; kept deliberately light/
+consolidating, which suited the tired-but-eager state) — cast-away-`const`, both
+faces of the UB.** Same-day continuation, so no quiz.
+
+**Covered (the parked session-17 payoff — a real C nuance, spent the depth here):**
+- **The core correction they needed.** Their prediction was that the compiler would
+  "detect that this is a pointer to the const and refuse the write." Retaught: the
+  compiler checks **only the type of the pointer at the write site**, and the cast
+  has already **stripped `const` off that type** — it does *not* trace where the
+  pointer came from. So `*p = 99` **always compiles** once you cast. They restated
+  it back correctly: *"I can't protect it — at the time of checking the type is not
+  const, it's just int."*
+- **It's a *runtime* question, and it's UB.** The one mistake (cast off `const`,
+  write) produces **more than one outcome**, decided by **where the compiler put the
+  bytes** and what it assumed:
+  - **Face 1 — write silently sticks (writable stack).** `const int x = 5` is an
+    ordinary writable stack local. `*p = 99` really wrote; `*p` read back `99`. BUT
+    plain `x` still printed `5` — *same address* — because the compiler, trusting
+    the `const`, had **baked the literal `5`** into the `printf` and never reloaded
+    from memory. Same address, two answers, one run. `const` bought zero runtime
+    protection; breaking the promise silently desynced memory from code.
+  - **Face 2 — write crashes (read-only rodata).** Aiming the same cast-away write at
+    a **string literal** (`"hello"`) hit read-only memory → **SIGBUS** (ASan: `WRITE`
+    access, `strlit.c:5`). Distinguished from the `NULL` SIGSEGV: `NULL` = *no page*
+    at addr 0; this = *page exists, no write permission*. Same hardware check, two
+    flavors. Also sharpened read-vs-write: *reading* a read-only page is fine; only
+    the **write** faults.
+- **Why string literals are read-only** (kept deliberately simple on their request,
+  "permanent-marker wall": can't edit; also lets the compiler store one shared copy).
+  Previews array→pointer decay (the literal *is* an address of its first char, no
+  `&`) — flagged as the next big topic, not formally taught yet.
+
+**Built — `p1b/constcheck.c`** (const local: write stuck, `*p`=99 / `x`=5 at
+`0x16b4fe680`, ran clean) and **`p1b/strlit.c`** (string-literal write: SIGBUS under
+`-fsanitize=address,undefined -g -O0`, read the ASan report). Review found and they
+fixed, in order: a mangled declaration that put a cast on the *left* of `=`
+(`(int *) const int *p = &x;` — untangled by separating "declared type" from "cast
+on the value"); a missing cast (`int *p = &x;` warns, discards qualifiers); and had
+to be pushed **three times** to print *plain `x` after the write* (not just `*p`) —
+that third print is the entire experiment, since it's what exposes the `*p`≠`x`
+split.
+
+**Banked 2 learnings** (via `/learnings`, their words, lightly polished): (1) the
+same cast-away-`const` write has two faces — silently sticks on the writable stack,
+crashes in read-only memory — decided by where the bytes live (`ub`, `memory`); (2)
+casting `const` away lets the write compile, but reading the *name* can still show
+the OLD value because the compiler cached the `const` as a literal at compile time —
+`const` is a compile-time promise, not a runtime lock (`ub`, `types`, `toolchain`).
+**Now 38 entries.**
+
+**Note on the session:** got overwhelmed mid-way ("this is too much to read at
+once", "you need to be really simple") when the three-outcomes explanation + the
+build guidance piled up — pulled back to three-line answers and plain-language
+("permanent-marker wall") and it landed. Worth watching the paragraph size on tired
+sessions. Did **not** write their C at any point (held the line on the second demo
+when they asked "explain how to write it" and "how to write one char through the
+pointer" — pointed at their own `constcheck.c` pattern instead).
+
+**Where I left off mid-thought:** nothing open; both binaries built and behaved as
+predicted, both learnings banked. Next: the `&outer_x` shadow-proof (the last parked
+payoff), then pointer arithmetic / array→pointer decay.
 
 **2026-11-22 (session 21, FIFTH session of the day — deliberately light,
 consolidating material, which suits it; didn't re-run the rested-brain fork, just
@@ -785,17 +905,17 @@ should offer to close one of these when a session has slack at the end.*
   can come from different stages.* Offered **three** times now (retaught again in
   session 17's Q3), still not written up. It's in the recall queue anyway — worth
   pushing them to bank it next time it surfaces.
-- **Cast-away-`const` demo — parked for 1B.** Defeating `const` (take the address,
-  cast off the `const`, write through the pointer → UB if the object was truly
-  `const`) needs pointer syntax they haven't drilled. Cut from session 17; it's
-  the natural *first* payoff when pointers land in 1B (sources: King §11.1–11.2
-  for `&`/`*`, §7.4 for casts). They already understand *why* it's UB — they just
-  need the mechanics.
-- **Array → pointer "decay", and `char *p = "..."`.** Keep hearing that passing an
-  array to a function turns it into a pointer (so `sizeof` starts lying), and that
-  a string literal assigned to `char *` is read-only and writing to it is UB — but
-  I've only got the sentences, not the mechanism or the memory picture. This is
-  *the* Phase 1B topic; met properly there.
+- ~~**Cast-away-`const` demo — parked for 1B.**~~ **CLOSED 2026-11-23 (session 22):**
+  built both faces — write sticks on a `const` local (writable stack), crashes
+  (SIGBUS) through a pointer to a string literal (read-only rodata); understood the
+  cast always compiles (type-based check, no provenance trace) and the outcome is
+  runtime UB decided by placement. Banked 2 learnings.
+- **Array → pointer "decay", and `char *p = "..."`.** The *read-only-string-literal*
+  half is now **seen live** (session 22: writing through a pointer to `"hello"` →
+  SIGBUS; a literal used as a value *is* an address of its first char, no `&`). Still
+  owed: the **decay mechanism** itself — passing an array to a function turns it into
+  a pointer so `sizeof` starts lying — the memory picture, not just the sentence.
+  This is *the* Phase 1B topic; met properly in its own session (King §11, §12).
 - **Makefile polish (carry-over from 0.5).** The `p0.5/Makefile` works but is
   minimal — no strict flag set, no `asan` target, no `.PHONY`. Round it out early
   in Phase 1 (and once `-Werror -Wconversion` go in, the `int n = sizeof(...)` in
@@ -859,6 +979,9 @@ retires one after I've answered it correctly twice on different days.*
 | What do `-g`, `-O0`, and `-fsanitize=address,undefined` each do in a dev build, and why do you want `-O0` *specifically* when debugging? What is a `.dSYM` bundle, why does macOS create one, and is it source or build output? | 2026-11-22 | — | 0 |
 | You deref two bad pointers by mistake — one is `NULL`, one was never initialized. Which fails loud and *deterministic*, and which can *silently* corrupt memory and still pass every test? Why does that make `NULL` the *safer* bad value — and what two habits follow? How does deref-ing `NULL` differ from touching `None` in Python? | 2026-11-22 | — | 0 |
 | Dereferencing `NULL` is a *runtime* crash — yet the report says `null.c:7`. How can a runtime crash know a source line? What did the compiler/sanitizer do at *compile* time, and what happens to that line number if you strip `-g` *and* the sanitizers? | 2026-11-22 | — | 0 |
+| You cast the `const` off a pointer and write through it. The *same* mistake made one program silently keep the old value and another crash (SIGBUS). What single thing decides which you get — and why does the write *compile* either way? How does the crash's SIGBUS differ from a `NULL` SIGSEGV? | 2026-11-23 | — | 0 |
+| After `*p = 99` through a cast-away-`const` pointer, `*p` prints `99` but plain `x` prints `5` — *same address, same run*. How is that possible? What did the compiler do to the read of `x`, and what does that tell you about what `const` actually is? | 2026-11-23 | — | 0 |
+| You save `p = &x`, then open an inner block that declares its own `x = 99` (shadowing). Inside the block: what do `x` and `*p` each print, and are `&x` and `p` the same address? What does the disagreement prove about what shadowing does — and why can a pointer saved *before* the block still reach the outer variable whose name is now hidden? | 2026-11-23 | — | 0 |
 
 ## Phase progress
 
@@ -878,15 +1001,15 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-36 entries.
+38 entries.
 
 | Tag | Count |
 | --- | --- |
 | `python-collision` | 19 |
-| `types` | 12 |
-| `toolchain` | 11 |
-| `ub` | 8 |
-| `memory` | 5 |
+| `types` | 13 |
+| `toolchain` | 12 |
+| `ub` | 10 |
+| `memory` | 6 |
 | `standard` | 5 |
 | `integer` | 4 |
 | `process` | 4 |

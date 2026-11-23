@@ -505,3 +505,17 @@ recall queue. It is also the source for `/teach`'s quiz.
 - **Found out by:** the `NULL` deref under `-fsanitize -g` reported `null.c:<line>` — because at **compile time** UBSan records every dereference site *with its file and line* and bakes that into the binary, and `-g` writes a DWARF address→line map (the `.dSYM`). The runtime handler just prints back what was stored. Strip `-g` *and* the sanitizers and the same deref gives a bare `segmentation fault` with **no line** — nobody wrote the map down.
 - **When:** 2026-11-22 · P1B
 - **Tags:** `toolchain`, `process`
+
+## The same cast-away-`const` write has two faces depending on where the bytes live — it silently sticks on the writable stack, but crashes in read-only memory
+
+- **I used to assume:** casting `const` away and writing would behave one consistent way — and that if the compiler could "see" the target was `const`, it would stop me.
+- **Found out by:** the write always *compiles* once you cast (the compiler only checks the type in front of it, and the cast strips `const` off that type — it doesn't trace where the pointer came from). What differs is runtime, and it's UB: `p1b/constcheck.c` — a `const int` local lives on the **writable stack**, so `*p = 99` silently *stuck* (no crash). `p1b/strlit.c` — writing through a pointer to a `"double-quoted string"` *crashed* (ASan: WRITE access, SIGBUS at strlit.c:5), because string literals are stored in **read-only memory** that the hardware refuses to let you write. Same mistake, opposite symptom — decided entirely by where the compiler placed the bytes.
+- **When:** 2026-11-23 · P1B
+- **Tags:** `ub`, `memory`
+
+## Casting `const` away lets the write compile, but reading the name can still show the OLD value — the compiler cached the `const` as a literal at compile time, so `const` is a compile-time promise, not a runtime lock on the bytes
+
+- **I used to assume:** if the write went through (no crash), then reading the variable afterwards would obviously show the new value — same address, same answer.
+- **Found out by:** `p1b/constcheck.c` — after `*p = 99` (where `p` was `(int *)&x`), `*p` printed `99` but plain `x` printed `5`, *same address `0x16b4fe680`, same run*. Because `x` was declared `const int x = 5`, the compiler trusted the promise and baked the literal `5` straight into the `printf` — it never emitted a read from memory for the name. `*p` reads memory (99); `x` was replaced by the cached literal (5). `const` bought zero runtime protection of the storage — it's a promise the compiler *builds on*, and breaking it silently desyncs memory from code (UB).
+- **When:** 2026-11-23 · P1B
+- **Tags:** `ub`, `types`, `toolchain`
