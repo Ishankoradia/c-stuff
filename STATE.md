@@ -76,21 +76,101 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
   `p1b/arith.c`. Banked 1 learning. **Note:** hex-arithmetic slip (added decimal 12
   to `0x1000` → wrote `0x1012`; correct is `0x100C`) — pointer logic was right, just
   base-16 addition; worth a glance next time addresses show up.
-- **Next action:** **one more pointer-walking drill to consolidate** (pick when
-  teaching): e.g. a string length / reverse by walking a `char *` to `'\0'`, or a
-  sum/min over an array via a `(ptr, len)` function — exercises arithmetic + the
-  length idiom together before moving on. The ROADMAP 1B drill list (strlen/strcpy/
-  strncpy/strcmp/memcpy/memmove/reverse/tokeniser/atoi/bitset/generic swap/bubble
-  sort over `void *`) is the menu. Primary source: **K. N. King §11, §12, §13**
-  (strings). Still outstanding from 1A (fold into one tooling session): the
-  unsigned-wraparound / `-Wconversion` drill + Makefile strict-flag/`asan`/`.PHONY`
-  polish.
-- **Sessions this phase:** 14 (1B: 6)
+- **Consolidating pointer-walk — DONE (session 25):** hand-rolled `strlen` as the
+  first real 1B string drill. Built `p1b/strlen.c`: `size_t str_len(const char *ptr)`
+  walks the pointer (`ptr = ptr + 1`) comparing `*ptr` to `'\0'`, counting; returns
+  the count (not including the terminator). Correct, sanitizer-clean. Nailed the two
+  load-bearing bits: (1) **the stopping condition is the `'\0'` the compiler auto-appends
+  to every literal** (`"hi"` is 3 bytes: `h`,`i`,`\0`; length is 2, terminator not
+  counted) → so the length lives *only* in that trailing byte → `strlen` is **O(n)** (a
+  walk, not a lookup; Python `len` is O(1) because the string stores its length); (2)
+  **no length parameter needed** — unlike the `print_ele2` int-array case (no sentinel →
+  must pass length), a C string carries its end marker *in-band*, so the terminator does
+  the job the separate parameter did. **`%s`-on-`*p` recurrence (fmt.c, session 13):**
+  while building they wrote `printf("%s", *p)` — passed a `char` (`'H'`=72) where `%s`
+  wants a `char *` address → UB that *still appeared to print* ("it works!"). Retaught:
+  `%s` takes an **address** and walks from it to `'\0'` (does the walking itself), so it
+  needs `p` not `*p`; UB is *allowed to look like it works*, the compiler `-Wformat`
+  warning is the real signal, not the output. Sharpened `*p` ("the one char here", for
+  *their* loop) vs `p` ("the address, start reading here", for `%s`).
+- **Const-correctness review (session 25):** `/review` flagged two spots, both fixed:
+  the `str_len` param and the `p` local were plain `char *` but (a) the function only
+  *reads*, so the param should be `const char *` (matches libc `strlen`), and (b) `p`
+  aimed a *writable* pointer at a **read-only string literal** (the `strlit.c` rodata
+  trap) — `const char *` makes a stray `*p = 'x'` a *compile* error instead of a runtime
+  SIGBUS. Both corrected → **the type now tells the truth about what you may do through
+  the pointer.** This walked them straight into the next concept (below).
+- **Next action:** **teach `const` on each side of the `*`** — they're primed: their
+  `strlen` loop reassigned a `const char *` (`ptr = ptr + 1`) freely, and they correctly
+  predicted that `const char *` protects the **pointee** (the `char`, so `*ptr = x` is
+  rejected) **not the pointer** (so `ptr` can still move). Teach the mirror forms:
+  `char * const` (pointer locked, pointee writable), and `const char * const` (both
+  locked) — *where the `const` sits relative to the `*` is the whole game.* Then continue
+  the 1B string drills: `strcpy`, `strncpy` (and *why* its semantics are a trap), `strcmp`,
+  `memcpy`, `memmove` (overlap!), in-place reverse, tokeniser, `atoi`, bitset, generic
+  `swap`, bubble-sort over `void *`. Primary source: **K. N. King §11, §12, §13** (strings);
+  for `const`-placement, **§11.3 / §17.3** or the cdecl "right-left rule." Still outstanding
+  from 1A (fold into one tooling session): the unsigned-wraparound / `-Wconversion` drill +
+  Makefile strict-flag/`asan`/`.PHONY` polish.
+- **Sessions this phase:** 15 (1B: 7)
 - **1B exit test:** given any pointer drill, state for each pointer — what it
   points at, who owns that memory, and when it dies. (From 1B on: sanitizer-clean,
   zero leaks, no partial credit.)
 
 ## Last session
+
+**2026-11-26 (session 25, after a 3-day gap — first non-same-day session since the
+2026-11-22→23 seven-session stretch; quiz ran properly) — hand-rolled `strlen` + the
+`%s` recurrence + a const-correctness review.**
+
+**Recall quiz (3-day gap → ran; asked 1, it became a reteach, so stopped there):**
+- **NULL-deref chain / "is a page fault always fatal?"** (added 2026-11-15) — **partial,
+  recovered after reteach.** They had both *endpoints* cold (address 0 is unmapped; the
+  resulting SIGSEGV is uncatchable) but **collapsed the middle** into "the OS kernel throws
+  a segmentation error." Reteach, via two probes: (a) the **MMU is the first responder** —
+  on *every* access it translates virtual→physical via the page table; finding no valid
+  mapping it **raises a hardware page fault (a trap)** — it does **not** send a signal; (b)
+  the **kernel's page-fault handler then *judges*** the faulting address against the
+  process's memory map → **benign** (valid but not resident: demand paging / lazy alloc /
+  swap-in → map a page, return, CPU re-runs the instruction, program never knows) vs
+  **illegal** (address 0 → send **SIGSEGV**, default action kills). The payoff that ties
+  it together: *the MMU can't be the thing that sends the signal, because only the kernel
+  can tell benign from fatal — to the MMU both faults look identical.* So **a page fault is
+  NOT always fatal** (most in a healthy system are the benign kind, invisible). They
+  confirmed the closing prediction cleanly: from inside your C code you cannot detect that
+  a benign fault happened — the instruction just re-runs. **Last asked 2026-11-26, streak
+  still 0 — needs one more cold pass** (had to be rebuilt from the endpoints).
+
+**Covered / built — `p1b/strlen.c` (the consolidating pointer-walk, first 1B string drill):**
+- `size_t str_len(const char *ptr)` walks `ptr` to the `'\0'`, counting. Correct;
+  sanitizer-clean. Tested `""`→0 and `"Hi there"`→8.
+- **The `'\0'` is the compiler-appended terminator** (`"hi"` = 3 bytes, length 2, terminator
+  not counted); the length lives *only* in that byte → **`strlen` is O(n)** (walk, not
+  lookup) vs Python `len` O(1) (stored). **No length parameter needed** — the in-band
+  sentinel does the job `print_ele2`'s separate `len` param did for a sentinel-less int array.
+- **`%s`-on-`*p` recurrence** (the fmt.c lesson, session 13): they wrote `printf("%s", *p)`
+  — handed a `char` (`'H'`=72) to a `%s` that wants a `char *` address → **UB that still
+  *appeared* to print.** Retaught: `%s` takes an address and walks it to `'\0'` itself, so
+  it needs `p` not `*p`; **UB is allowed to look like it works** — the `-Wformat` warning is
+  the real signal, not the output. Clean split banked: `*p` = "the char here" (for *their*
+  loop's compare), `p` = "the address, read from here" (for `%s`).
+
+**`/review` — two const-correctness findings, both fixed in-session:** the param and the `p`
+local were plain `char *`; (1) `str_len` only reads → param → `const char *` (matches libc);
+(2) `p` aimed a *writable* pointer at a **read-only literal** → `const char *` turns a stray
+`*p = 'x'` into a *compile* error instead of a runtime SIGBUS. Framed as one lesson: *a
+pointer's type should tell the truth about what you may do through it.*
+
+**Banked 0 learnings.** The `%s`-on-`*p` UB-looks-like-success is a recurrence of the
+session-13 fmt.c rule (`printf` trusts the format string; mismatch = UB) — **flagged as a
+`/learnings` recurrence candidate** (their words) but not forced; offer it next session. The
+const-correctness and the O(n)/sentinel points were understood, not surprises. **Still 39.**
+
+**Where I left off mid-thought:** nothing open. `strlen.c` builds, runs, types honest. They
+*predicted the next concept for free*: `const char *` protects the **pointee not the pointer**
+(their loop reassigned `ptr` freely while `*ptr` would be write-protected). Next session opens
+on that: **`const` on each side of the `*`** (`const char *` vs `char * const` vs
+`const char * const`), then onward through the 1B string drills.
 
 **2026-11-23 (session 24, same-day — SEVENTH in the 2026-11-22→23 stretch; I
 offered the rested-brain fork, 'lighter tooling vs the big topic,' and recommended
@@ -1009,7 +1089,7 @@ retires one after I've answered it correctly twice on different days.*
 | At what point is `sizeof(x)` computed, and does it evaluate `x`? What does that mean for `sizeof(x++)`? | 2026-11-14 | — | 0 |
 | Why can't a C null-terminated string hold a `0` byte in the middle, and what must you use for data (like an HTTP body) that might contain one? | 2026-11-14 | — | 0 |
 | Python `len(s)` and C `strlen(s)` — which is O(1), which is O(n), and what single fact about each explains the difference? | 2026-11-14 | — | 0 |
-| You deref `NULL` and get SIGSEGV. Walk the chain: what spots the bad access, what does it raise, and who actually sends the signal? Is a page fault always fatal? | 2026-11-15 | — | 0 |
+| You deref `NULL` and get SIGSEGV. Walk the chain: what spots the bad access, what does it raise, and who actually sends the signal? Is a page fault always fatal? | 2026-11-15 | 2026-11-26 | 0 — **partial, recovered after reteach**: had the endpoints (addr 0 unmapped; SIGSEGV uncatchable) but collapsed the middle to "the kernel throws it". Rebuilt: **MMU** detects on translate → raises a **hardware page fault** (not a signal); **kernel** handler *judges* benign (demand-paging/lazy/swap → map & resume, invisible) vs illegal (addr 0 → SIGSEGV). So *not* always fatal; MMU can't send the signal (only the kernel tells benign from fatal). Needs one more cold pass. |
 | `for (size_t i = len-1; i >= 0; i--)` — what goes wrong, and why? | 2026-11-15 | — | 0 |
 | `-1` as a signed `int` and `UINT_MAX` as unsigned — how do their bit patterns compare, and what does that tell you about where "signedness" lives? | 2026-11-15 | — | 0 |
 | A misspelled function *call* vs a renamed `main`: which fails at the compiler, which at the linker, and what one-word distinction decides it? | 2026-11-15 | — | 0 |
@@ -1042,6 +1122,9 @@ retires one after I've answered it correctly twice on different days.*
 | You save `p = &x`, then open an inner block that declares its own `x = 99` (shadowing). Inside the block: what do `x` and `*p` each print, and are `&x` and `p` the same address? What does the disagreement prove about what shadowing does — and why can a pointer saved *before* the block still reach the outer variable whose name is now hidden? | 2026-11-23 | — | 0 |
 | `int *p` and `char *q` both hold the *same* address `0x1000`. What do `p + 1` and `q + 1` evaluate to, and what single property decides the difference? Does `p + 1` change the value `p` points at, or move `p` itself? And how does `a[i]` relate to `*` and `+`? | 2026-11-23 | — | 0 |
 | You pass `int a[4]` to `void f(int *arr)` and write `sizeof(arr)` inside `f`. What do you get, and why isn't it 16? What got copied at the call, what happened to the array's *type*, and what must the caller therefore also pass? Where must the length be computed, and why not inside `f`? | 2026-11-23 | — | 0 |
+| You write `my_strlen` over a C string. What byte makes it stop, who put that byte there, and is it counted in the length? Why does `my_strlen` need **no** length parameter when `print_ele2` (over an int array) did? And why is `strlen` O(n) while Python's `len` is O(1)? | 2026-11-26 | — | 0 |
+| `printf("%s", p)` prints your whole string; you fat-finger `printf("%s", *p)` and it *still seems to print*. What is `%s` actually handed in each case (an address vs. a `char`), what does `%s` do with it, and why is the `*p` version UB **even though it appeared to work**? What is the real signal that it's wrong, and why isn't "it printed" evidence of anything? | 2026-11-26 | — | 0 |
+| `const char *ptr` — you can't write `*ptr = 'x'` but you *can* reassign `ptr = ptr + 1`. Which of the two — the pointee or the pointer — does the `const` lock, and how do you move the `const` to lock the *other* one instead (and both)? | 2026-11-26 | — | 0 |
 
 ## Phase progress
 
