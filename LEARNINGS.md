@@ -540,3 +540,10 @@ recall queue. It is also the source for `/teach`'s quiz.
 - **Found out by:** `p1b/constptr.c` — writing `*a = &c2;` (stray star) to *repoint* `a` instead errored and wrote through to the frozen pointee; dropping the star (`a = &c2;`) was the real repoint and compiled. (Recurs — the same arrow/box slip showed up 2026-11-26 earlier as `printf("%s", *p)` vs `p`.) The star means "follow the arrow to the box"; no star means "the arrow itself."
 - **When:** 2026-11-26 · P1B
 - **Tags:** `types`, `memory`
+
+## A buffer guarantees only its own capacity — accessing beyond it is UB, and that UB usually doesn't crash on its own: it silently corrupts whatever memory sits next to the buffer, so you can't see it without a tool like ASan
+
+- **I used to assume:** going past the end of a buffer would *announce itself* — crash or raise an error — the way an out-of-range index does in Python.
+- **Found out by:** `p1b/strcpy.c` — shrank `dest` to `char dest[2]` and copied `"hi there"` (9 bytes) into it. ASan reported `stack-buffer-overflow` at `strcpy.c:6` (the `*dest = *src` write), `dest` at `[32, 34)` overflowed at offset 34 — i.e. the 3rd byte, one past a 2-byte buffer. The point that stuck: without the sanitizer this likely wouldn't have crashed at all — it would have scribbled over adjacent stack memory and maybe still printed `"hi there"`, a silent corruption that passes tests. ASan surrounds the buffer with poisoned redzones and catches the exact write; hardware wouldn't.
+- **When:** 2026-11-26 · P1B
+- **Tags:** `memory`, `ub`, `buffer-overflow`

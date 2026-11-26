@@ -1222,16 +1222,17 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-41 entries.
+42 entries.
 
 | Tag | Count |
 | --- | --- |
 | `python-collision` | 20 |
 | `types` | 16 |
 | `toolchain` | 12 |
-| `ub` | 10 |
-| `memory` | 8 |
+| `ub` | 11 |
+| `memory` | 9 |
 | `standard` | 6 |
 | `integer` | 4 |
 | `process` | 4 |
 | `alignment-aliasing` | 2 |
+| `buffer-overflow` | 1 |
