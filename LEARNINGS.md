@@ -526,3 +526,17 @@ recall queue. It is also the source for `/teach`'s quiz.
 - **Found out by:** `p1b/arith.c` — `print_ele1` set its loop bound to `sizeof(arr)/sizeof(*arr)` *inside* the function and printed only **2** of 4 elements: `arr` had decayed to `int *`, so `sizeof(arr)` was `8` (a pointer), not `16` (the array) → `8/4 = 2`. Only passing the count explicitly — `print_ele2(a, sizeof(a)/sizeof(*a))`, where the `sizeof` is computed back in `main` while `a` is still a real array — looped all 4. (Ties to 2026-11-14: a C array doesn't store its own length.)
 - **When:** 2026-11-23 · P1B
 - **Tags:** `memory`, `types`, `python-collision`
+
+## A `const` object can only be given a value by its initializer at declaration — any `=` after that line is an assignment, which `const` forbids every time (including the first)
+
+- **I used to assume:** the *first* `=` was the initialization even if it came on a later line than the declaration — so a `const` could be set once, after being declared, and only then lock.
+- **Found out by:** `p1b/constptr.c` — `char * const p;` then `p = &c;` on the next line was rejected ("read-only variable is not assignable") on that very first assignment. Initialization is only the `= value` written *into* the declaration (`char * const p = &c;`); a standalone `=` afterward is always an assignment, and `const` refuses all of them. So a `const` object not seeded at its declaration is frozen with no legal way to ever set it.
+- **When:** 2026-11-26 · P1B
+- **Tags:** `standard`, `types`
+
+## On the left of an `=`, `p` and `*p` touch different things: `p = …` moves the arrow (repoints it to a different box); `*p = …` changes the value in the box the arrow points at, leaving the arrow untouched
+
+- **I used to assume:** nothing firm — `p` and `*p` just blurred together, so I'd reach for `*p = …` when I actually meant to repoint the pointer.
+- **Found out by:** `p1b/constptr.c` — writing `*a = &c2;` (stray star) to *repoint* `a` instead errored and wrote through to the frozen pointee; dropping the star (`a = &c2;`) was the real repoint and compiled. (Recurs — the same arrow/box slip showed up 2026-11-26 earlier as `printf("%s", *p)` vs `p`.) The star means "follow the arrow to the box"; no star means "the arrow itself."
+- **When:** 2026-11-26 · P1B
+- **Tags:** `types`, `memory`

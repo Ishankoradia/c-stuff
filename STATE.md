@@ -100,24 +100,100 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
   trap) — `const char *` makes a stray `*p = 'x'` a *compile* error instead of a runtime
   SIGBUS. Both corrected → **the type now tells the truth about what you may do through
   the pointer.** This walked them straight into the next concept (below).
-- **Next action:** **teach `const` on each side of the `*`** — they're primed: their
-  `strlen` loop reassigned a `const char *` (`ptr = ptr + 1`) freely, and they correctly
-  predicted that `const char *` protects the **pointee** (the `char`, so `*ptr = x` is
-  rejected) **not the pointer** (so `ptr` can still move). Teach the mirror forms:
-  `char * const` (pointer locked, pointee writable), and `const char * const` (both
-  locked) — *where the `const` sits relative to the `*` is the whole game.* Then continue
-  the 1B string drills: `strcpy`, `strncpy` (and *why* its semantics are a trap), `strcmp`,
-  `memcpy`, `memmove` (overlap!), in-place reverse, tokeniser, `atoi`, bitset, generic
-  `swap`, bubble-sort over `void *`. Primary source: **K. N. King §11, §12, §13** (strings);
-  for `const`-placement, **§11.3 / §17.3** or the cdecl "right-left rule." Still outstanding
-  from 1A (fold into one tooling session): the unsigned-wraparound / `-Wconversion` drill +
-  Makefile strict-flag/`asan`/`.PHONY` polish.
-- **Sessions this phase:** 15 (1B: 7)
+- **`const` on each side of the `*` — DONE (session 26):** the three forms and the one
+  rule that decodes them. A pointer has **two** pieces of storage that could be frozen —
+  the **pointer** (the arrow, holds the address) and the **pointee** (the box, the char) —
+  so `const` has two places to sit. **The decoding rule: look immediately *left* of
+  `const`; that's what's frozen (if `const` is leftmost, it applies right).** → `const char *`
+  (= `char const *`, same type two spellings) freezes the **pointee** (`*p = 'x'` ❌, `p = &c2` ✅);
+  `char * const` freezes the **pointer** (`*p = 'x'` ✅, `p = &c2` ❌); `const char * const`
+  freezes **both**. Built `p1b/constptr.c`: one writable `char c`, three pointer forms all
+  → `&c`, each tried both operations, compiler errors read for each. Two real corrections
+  landed: **(1) initialization ≠ assignment.** They believed `char * const p;` then
+  `p = &c;` would allow "the first assignment" then lock — wrong. The `=` *in a declaration*
+  is an **initializer** (the only way a value enters a `const`); a standalone `=` later is an
+  **assignment**, which `const` forbids **every time, including the first**. So a `const`
+  pointer MUST be seeded by its initializer at declaration or it's frozen garbage forever.
+  **(2) one declaration per name per scope:** they thought `const int y=10; const int y=20;`
+  makes "a new `y`" — no, that's a **redefinition error** (true even without `const`); a
+  genuinely new `y` needs a **new scope** (= shadowing, `shadowptr.c` session 23).
+  **`*p` vs `p` recurrence (the arrow/box confusion):** mid-build they wrote `*a = &c2;`
+  (stray star) for the *repoint* test — conflated write-through with repoint, so both lines
+  errored identically. Corrected with the mnemonic: **`p` = the arrow (`p = &c2` moves it);
+  `*p` = follow the arrow, touch the box (`*p = 'x'` changes the char).** This is a *recurring*
+  confusion (also hit it last session with `%s`) — watch for it.
+- **Next action:** **`my_strcpy` — the next 1B string drill, and the first that *writes*.**
+  Build `p1b/strcpy.c`: copy a source C string into a destination buffer, byte by byte to and
+  including the `'\0'`. The load-bearing new question (foreshadows Phase 2): `strlen` only
+  *read*, so it was safe; `strcpy` *writes into `dest`* — so **who allocated `dest`, who owns
+  it, and what happens if it's too small for `src`?** (That's the buffer-overflow class — the
+  single most famous C bug; here it previews why Phase 2 is about ownership.) First question to
+  pose: what must be true about `dest` *before* `my_strcpy` is called, and whose job is that —
+  the caller's or the function's? Signatures to reason about: `char *my_strcpy(char *dest,
+  const char *src)` — note `src` is `const` (read-only, borrowed) but `dest` is not (written
+  through). Then continue: `strcmp`, `strncpy` (and *why* its semantics are a trap), `memcpy`,
+  `memmove` (overlap!), in-place reverse, tokeniser, `atoi`, bitset, generic `swap`,
+  bubble-sort over `void *`. Primary source: **K. N. King §13** (strings), **K&R §5.5**.
+  Still outstanding from 1A (fold into one tooling session): the unsigned-wraparound /
+  `-Wconversion` drill + Makefile strict-flag/`asan`/`.PHONY` polish.
+- **Sessions this phase:** 16 (1B: 8)
 - **1B exit test:** given any pointer drill, state for each pointer — what it
   points at, who owns that memory, and when it dies. (From 1B on: sanitizer-clean,
   zero leaks, no partial credit.)
 
 ## Last session
+
+**2026-11-26 (session 26, same-day continuation right after session 25's wrap — so no
+quiz) — `const` on each side of the `*` (the three forms), plus two real corrections.**
+
+**Covered (a genuine C nuance — declarator syntax — so spent the depth; went Socratic):**
+- **A pointer has two freezable pieces:** the **pointer/arrow** (holds the address) and the
+  **pointee/box** (the char). So `const` has two places it can sit, one per piece.
+- **The decoding rule (the keeper):** *look immediately to the **left** of `const` — that's
+  what's frozen; if `const` is leftmost, it applies to its right.* Regenerates the whole table
+  without memorising:
+  - `const char *p` / `char const *p` — **pointee frozen** (`*p='x'` ❌, `p=&c2` ✅). (Same type, two spellings — a trap.)
+  - `char * const p` — **pointer frozen** (`*p='x'` ✅, `p=&c2` ❌).
+  - `const char * const p` — **both frozen** (both ❌).
+- They predicted the placement for "freeze the pointer" correctly ("put it on the right"),
+  and the mirror table operations correctly once they had the rule.
+- **Correction 1 — initialization ≠ assignment (load-bearing, a real belief-replacement).**
+  They thought `char * const p;` then `p = &c;` would permit "the first assignment" and lock
+  after. Retaught: the `=` *inside a declaration* is an **initializer** — the only channel a
+  value gets into a `const` object; a standalone `=` afterward is an **assignment**, which
+  `const` forbids **every time, the first included**. Tied back to session 17 (`const int x=5;`
+  then `x=6;` ❌ — the `=5` was never an assignment, it was the initializer). Consequence: a
+  `const` pointer not seeded at its declaration is frozen *garbage* with no legal fix.
+- **Correction 2 — one declaration per name per scope.** They thought `const int y=10;
+  const int y=20;` creates "a new `y`" — it's a **redefinition error** (true even without
+  `const`); a genuinely new `y` needs a **new scope** (= shadowing, `shadowptr.c` session 23).
+
+**Built — `p1b/constptr.c`:** one writable `char c = 'a';`, three pointer forms all pointing
+at `&c`, each tried **both** `*p = 'x'` (write box) and `p = &c2` (move arrow); read the
+compile error for each. Deliberately aimed at a *writable* `char` (not a string literal) so the
+accepted write-throughs run clean and every result is a pure compile-time yes/no (avoiding the
+`strlit.c` rodata crash muddying it).
+
+**Bug caught mid-build (the `*p`-vs-`p` recurrence):** for form 1's *repoint* test they wrote
+`*a = &c2;` (stray star) instead of `a = &c2;` — so both lines were write-throughs and errored
+identically. Named it (conflated write-through vs repoint, not the fix) → they corrected it,
+then saw form 1 behave right (`a=&c2` ✅ compiles, `*a='x'` ❌). Mnemonic given: **`p` = the
+arrow (`p=&c2` moves it); `*p` = follow the arrow to the box (`*p='x'` changes the char).** This
+arrow/box confusion is **recurring** (hit it last session too, via `%s`-on-`*p`) — flagged.
+
+**Overwhelm point:** when I stacked the "writable char vs string literal" caveat on top of the
+task they said *"you are giving me too many instructions and now i don't know what the assignment
+is."* Pulled straight back to a 4-line numbered spec with the why stripped out, and it landed.
+(Same tired-session paragraph-size lesson as session 22 — keep build specs lean.)
+
+**Banked 0 learnings.** Two strong `/learnings` candidates (their words, offered — not forced):
+(1) **initialization ≠ assignment** (`const` permits the initializer, forbids assignment,
+first one included) — the real belief-replacement of the session; (2) the **`*p` vs `p`
+arrow/box** rule, worth banking as the recurring-confusion antidote. **Still 39.**
+
+**Where I left off mid-thought:** nothing open; `constptr.c` demonstrates all three forms. Next
+is `my_strcpy` — the first string drill that *writes into a buffer*, which opens the ownership /
+buffer-overflow question (the on-ramp to Phase 2).
 
 **2026-11-26 (session 25, after a 3-day gap — first non-same-day session since the
 2026-11-22→23 seven-session stretch; quiz ran properly) — hand-rolled `strlen` + the
@@ -1124,7 +1200,9 @@ retires one after I've answered it correctly twice on different days.*
 | You pass `int a[4]` to `void f(int *arr)` and write `sizeof(arr)` inside `f`. What do you get, and why isn't it 16? What got copied at the call, what happened to the array's *type*, and what must the caller therefore also pass? Where must the length be computed, and why not inside `f`? | 2026-11-23 | — | 0 |
 | You write `my_strlen` over a C string. What byte makes it stop, who put that byte there, and is it counted in the length? Why does `my_strlen` need **no** length parameter when `print_ele2` (over an int array) did? And why is `strlen` O(n) while Python's `len` is O(1)? | 2026-11-26 | — | 0 |
 | `printf("%s", p)` prints your whole string; you fat-finger `printf("%s", *p)` and it *still seems to print*. What is `%s` actually handed in each case (an address vs. a `char`), what does `%s` do with it, and why is the `*p` version UB **even though it appeared to work**? What is the real signal that it's wrong, and why isn't "it printed" evidence of anything? | 2026-11-26 | — | 0 |
-| `const char *ptr` — you can't write `*ptr = 'x'` but you *can* reassign `ptr = ptr + 1`. Which of the two — the pointee or the pointer — does the `const` lock, and how do you move the `const` to lock the *other* one instead (and both)? | 2026-11-26 | — | 0 |
+| `const char *ptr` — you can't write `*ptr = 'x'` but you *can* reassign `ptr = ptr + 1`. Which of the two — the pointee or the pointer — does the `const` lock, and how do you move the `const` to lock the *other* one instead (and both)? What single rule tells you which, just by looking at where `const` sits relative to the `*`? | 2026-11-26 | — | 0 |
+| `char * const p;` then on the next line `p = &c;` — legal or not? Is the `=` in `char * const p = &c;` the *same* operation as the `=` in a later `p = &c;` statement? Which one does `const` forbid, and what's the only moment a `const` object can get its value? | 2026-11-26 | — | 0 |
+| Given `char *a;`, what's the difference between `a = &c2` and `*a = 'x'` — which moves the pointer and which changes the thing it points at? (The recurring arrow/box trap: which one has the star, and what does the star *do*?) | 2026-11-26 | — | 0 |
 
 ## Phase progress
 
@@ -1144,16 +1222,16 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-39 entries.
+41 entries.
 
 | Tag | Count |
 | --- | --- |
 | `python-collision` | 20 |
-| `types` | 14 |
+| `types` | 16 |
 | `toolchain` | 12 |
 | `ub` | 10 |
-| `memory` | 7 |
-| `standard` | 5 |
+| `memory` | 8 |
+| `standard` | 6 |
 | `integer` | 4 |
 | `process` | 4 |
 | `alignment-aliasing` | 2 |
