@@ -167,3 +167,9 @@ stalls and reads as asking permission. The only understanding-check is a **real
 prediction** at the moment that matters (a *core* concept, once, before the build
 handoff); everywhere else, just move to the next thing. Resolves the parked note
 in `STATE.md` open threads (removed).
+
+## 2026-11-27 — surface the real libc function behind each hand-rolled drill
+
+> "you need to explain the inbuilt functions signature at some point properly either before or aftet exercise. because i just got know these functions are available in string.h ."
+
+**File:** `CLAUDE.md` (item 5, "Point at primary sources") — **sharpened in place**, not a new rule. Added: when a drill hand-rolls a standard-library function, say so explicitly (before or after the exercise, never silently) and give the real one properly — its header (`<string.h>` etc.), its exact prototype, and its man-page contract — so they know the canonical version exists, see how it's declared, and can compare their version against it. Trigger: a drill that clones a libc function. Prompted by realizing only after `strlen`/`strcpy`/`strncpy` that these live in `<string.h>`.

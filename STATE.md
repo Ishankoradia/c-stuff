@@ -122,26 +122,115 @@ Companions: `ROADMAP.md` (curriculum + protocol), `LEARNINGS.md` (lab notebook),
   errored identically. Corrected with the mnemonic: **`p` = the arrow (`p = &c2` moves it);
   `*p` = follow the arrow, touch the box (`*p = 'x'` changes the char).** This is a *recurring*
   confusion (also hit it last session with `%s`) — watch for it.
-- **Next action:** **`my_strcpy` — the next 1B string drill, and the first that *writes*.**
-  Build `p1b/strcpy.c`: copy a source C string into a destination buffer, byte by byte to and
-  including the `'\0'`. The load-bearing new question (foreshadows Phase 2): `strlen` only
-  *read*, so it was safe; `strcpy` *writes into `dest`* — so **who allocated `dest`, who owns
-  it, and what happens if it's too small for `src`?** (That's the buffer-overflow class — the
-  single most famous C bug; here it previews why Phase 2 is about ownership.) First question to
-  pose: what must be true about `dest` *before* `my_strcpy` is called, and whose job is that —
-  the caller's or the function's? Signatures to reason about: `char *my_strcpy(char *dest,
-  const char *src)` — note `src` is `const` (read-only, borrowed) but `dest` is not (written
-  through). Then continue: `strcmp`, `strncpy` (and *why* its semantics are a trap), `memcpy`,
-  `memmove` (overlap!), in-place reverse, tokeniser, `atoi`, bitset, generic `swap`,
-  bubble-sort over `void *`. Primary source: **K. N. King §13** (strings), **K&R §5.5**.
-  Still outstanding from 1A (fold into one tooling session): the unsigned-wraparound /
-  `-Wconversion` drill + Makefile strict-flag/`asan`/`.PHONY` polish.
-- **Sessions this phase:** 16 (1B: 8)
+- **`my_strcpy` — DONE (session 27):** first string drill that *writes into a caller-owned
+  buffer*. Built `p1b/strcpy.c`: `void my_strcpy(char *dest, const char *src)` walks `src`,
+  copies each byte, then writes the `'\0'` *after* the loop (they solved the terminator trap
+  deliberately). Load-bearing ground covered: **the caller owns `dest`** (declares it, sizes
+  it; the function just borrows a bare `char *` and can't even see its size — no `malloc` till
+  P2); **`dest` capacity must be `strlen(src) + 1`** (the `+1` for the terminator; `sizeof(src)`
+  is the pointer-size trap = 8). **Corrected my own sloppy claim** that "Python `b = a` copies":
+  it doesn't — `b = a` in Python *and* `char *b = a` in C both copy the **arrow** (one object/
+  string, two references); neither duplicates the bytes. So the real collision is *both share by
+  default; C just gives you no auto-deep-copy and no memory management* — which is why `strcpy`
+  must exist (there is no `=` in C that duplicates a string). Met **VLA** (`char dest[strlen(src)
+  + 1]` is a runtime-sized stack array — works, but sizing a *stack* buffer from untrusted input
+  = stack-blowout risk; don't do it in the HTTP parser). **First self-made memory bug caught by
+  ASan:** shrank `dest` to `char dest[2]`, copied a long string → `stack-buffer-overflow` on a
+  **WRITE** at the copy line. Banked 1 learning.
+- **`my_strncpy` — DONE (session 28, rolled past midnight into 2026-11-27):** the "and why its
+  semantics are a trap" drill. Built `p1b/strncpy.c`: `void my_strncpy(char *dest, const char
+  *src, size_t n)` with the **authentic (trap) semantics** — copy ≤ `n` bytes; if `src` ends
+  first, pad the rest of `dest` with `'\0'`; if `src` is ≥ `n`, **copy `n` bytes and do NOT
+  terminate**. They derived that the termination *falls out of the loop* (whichever of `src`'s
+  `'\0'` vs the count `n` ends first decides it). The trap, understood + demonstrated: `n` is a
+  *caller's promise* about `dest`'s size that the function trusts blindly (bare pointer, can't
+  check) — and when `src ≥ n`, `dest` is left **unterminated**, so the overflow surfaces not at
+  the copy but at the later `printf("%s", …)` — a **READ** overflow (ASan caught it). `strncpy`
+  is a fixed-width-field tool from early Unix, **not** a safe `strcpy`; terminating is the
+  *caller's* job. Banked 1 learning. **Bug hit + fixed (off-by-one):** their "safe fix"
+  `*(dest+5) = '\0'` on a `char dest[5]` wrote one past the end (index 5 invalid) → write
+  overflow; they fixed it by sizing `dest[6]` (n copied chars need an `n+1` buffer to also hold
+  the terminator). Also cleared up, via Q&A: a plain `char x = 'i'` is a **value (105), not an
+  address** — print with `%c`, never `%s`; value-vs-address lives in the *type* (`char` vs
+  `char *`), not in whether you wrote a `*`; and the *same* pointer serves both `%p` (print the
+  address) and `%s` (follow the address) because both consume an address.
+- **Next action:** **`my_strcmp` — the next 1B string drill (read-only, consolidating).** Build
+  `p1b/strcmp.c`: compare two C strings and return `<0 / 0 / >0` (negative if the first differs-
+  lower, 0 if equal, positive if first differs-higher — the standard sign convention on the
+  *first differing char*). New ground vs the copy drills: **walk two pointers in lockstep**,
+  compare `*a` vs `*b` each step, and decide the stopping/return rule. First question to pose:
+  what are the *two* conditions under which the loop should stop (chars differ, OR you hit the
+  end), and at the moment it stops, *what* do you return and how do you get the sign? Signature:
+  `int my_strcmp(const char *a, const char *b)` — both `const` (read-only; no buffer to own this
+  time, so no overflow risk — a breather after strncpy). Then continue: `memcpy`, `memmove`
+  (**overlap!** — the real lesson there), in-place reverse, tokeniser, `atoi`, bitset, generic
+  `swap`, bubble-sort over `void *`, plus **function pointers** and **learning `lldb`** (both
+  still owed in 1B). Primary source: **K. N. King §13**, **K&R §5.5**. Still outstanding from
+  1A (one tooling session): unsigned-wraparound / `-Wconversion` drill + Makefile strict-flag/
+  `asan`/`.PHONY` polish.
+- **PARKED `/tune` (session 27):** they flagged a teaching-order preference — *"explain the
+  drill's purpose first, THEN the Python-vs-C collision, THEN the prediction questions"* (I'd led
+  with the collision and jumped to questions before plainly saying what `strcpy` is for). I
+  offered to route it through `/tune`; they didn't run it. **Run `/tune` to fold "open a new
+  drill with what it's for before the Socratic part" into the teaching contract so it sticks.**
+- **Sessions this phase:** 18 (1B: 10)
 - **1B exit test:** given any pointer drill, state for each pointer — what it
   points at, who owns that memory, and when it dies. (From 1B on: sanitizer-clean,
   zero leaks, no partial credit.)
 
 ## Last session
+
+**2026-11-26 → 2026-11-27 (sessions 27 + 28, back-to-back same-day, rolled past midnight;
+`/wrap` was skipped after 27 so this entry captures both) — `my_strcpy` then `my_strncpy`,
+the first string drills that *write* into a buffer. Buffer ownership + two buffer-overflow
+bugs (one write, one read) caught by ASan.** No quizzes (same-day continuations).
+
+**Session 27 — `my_strcpy` (`p1b/strcpy.c`):**
+- Built `void my_strcpy(char *dest, const char *src)`: walk `src`, copy each byte, write `'\0'`
+  after the loop. Correct, clean.
+- Core new idea: **the caller owns `dest`.** The function gets a bare `char *` — it can't see
+  the buffer's size, so it can't check; it just writes. Capacity must be **`strlen(src) + 1`**.
+- **Corrected a sloppy thing I'd said** ("Python `b = a` copies"): it doesn't — both Python's
+  `b = a` and C's `char *b = a` copy the *pointer/arrow* (one string, two references). The honest
+  collision: both languages share by default; C just has no auto-deep-copy and no memory mgmt, so
+  `strcpy` has to exist. (They asked "shouldn't it be `char *b = *a`?" — untangled: bare `a` is
+  the address, `*a` is the char; one string + two arrows.)
+- Met **VLA** (runtime-sized stack array) and why not to size a stack buffer from input.
+- **First ASan catch:** `char dest[2]` + long copy → `stack-buffer-overflow` (WRITE). Read the
+  report together (`[32,34) 'dest'`, offset 34 = one past a 2-byte buffer, at `strcpy.c:6`).
+  Taught the big point: an overflow usually *doesn't crash on its own* — silent corruption — ASan
+  is what makes it loud. **Banked learning** (buffer capacity / overflow is UB & silent w/o ASan).
+
+**Session 28 — `my_strncpy` (`p1b/strncpy.c`), the "why it's a trap" drill:**
+- Built `void my_strncpy(char *dest, const char *src, size_t n)` with **authentic trap
+  semantics**: copy ≤ `n`; pad with `'\0'` if `src` ends first; **no terminator if `src ≥ n`.**
+  They derived that termination *falls out of the loop* (whichever ends first — `src`'s `'\0'`
+  or the count `n`).
+- The trap, understood: `n` is the caller's unverifiable *promise* about `dest`'s size; when
+  `src ≥ n`, `dest` is left **unterminated**, so the bug detonates at the later `printf("%s")`
+  as a **READ** overflow (ASan caught it) — not at the copy. `strncpy` = fixed-width-field tool,
+  not safe `strcpy`; **terminating is the caller's job. Banked learning.**
+- **Off-by-one bug:** the "safe fix" `*(dest+5) = '\0'` on `char dest[5]` wrote index 5 (one past
+  the end) → write overflow; fixed by sizing `dest[6]` (n copied chars need an `n+1` buffer for
+  the terminator too). Final version correct + clean.
+- **Value-vs-address Q&A (load-bearing, several misconceptions cleared):** a plain `char x = 'i'`
+  is a **value (105), not an address** → print with `%c`, not `%s` (`%s` on it = the UB bug);
+  whether a variable holds a value or an address is decided by its **type** (`char` vs `char *`),
+  not by stars; and the *same* `char *` serves both `%p` (print the address) and `%s` (follow it)
+  because both take an address and just *do* different things with it.
+- **One model-correction I owed them:** I wrongly claimed clang `-Wformat` warns on `%p` with a
+  `char *`; it does **not** (only on `%p` with a non-pointer). It's a standards-pedantry nit (the
+  `(void *)` cast is strictly-correct & consistent), not a warning. They caught it; I corrected it.
+
+**Banked 2 learnings across the two sessions** → **43 total** (`memory`/`ub`/`buffer-overflow`
+×2 — the first *recurrence* of the `buffer-overflow` category tag, write then read). Plus the
+two from session 26's `/learnings` (init≠assignment; arrow/box) landed between 26 and 27.
+
+**Where I left off mid-thought:** nothing open; both binaries build, run, and are sanitizer-clean.
+`strcmp` is next (read-only — a breather after two overflow-laden write drills). **Unbanked
+`/learnings` candidates they passed on** (offer again, don't force): the **VLA** concept, the
+**off-by-one / size-`n` buffer holds `n−1` chars + terminator** rule, and the **value-vs-address
+is in the type** clarification. And a **parked `/tune`** (teaching-order feedback — see Position).
 
 **2026-11-26 (session 26, same-day continuation right after session 25's wrap — so no
 quiz) — `const` on each side of the `*` (the three forms), plus two real corrections.**
@@ -1203,6 +1292,11 @@ retires one after I've answered it correctly twice on different days.*
 | `const char *ptr` — you can't write `*ptr = 'x'` but you *can* reassign `ptr = ptr + 1`. Which of the two — the pointee or the pointer — does the `const` lock, and how do you move the `const` to lock the *other* one instead (and both)? What single rule tells you which, just by looking at where `const` sits relative to the `*`? | 2026-11-26 | — | 0 |
 | `char * const p;` then on the next line `p = &c;` — legal or not? Is the `=` in `char * const p = &c;` the *same* operation as the `=` in a later `p = &c;` statement? Which one does `const` forbid, and what's the only moment a `const` object can get its value? | 2026-11-26 | — | 0 |
 | Given `char *a;`, what's the difference between `a = &c2` and `*a = 'x'` — which moves the pointer and which changes the thing it points at? (The recurring arrow/box trap: which one has the star, and what does the star *do*?) | 2026-11-26 | — | 0 |
+| You call `my_strcpy(dest, src)`. Who had to create and size `dest`, and how big must it be as a formula in `src`? Why can't `my_strcpy` check for itself whether `dest` is big enough — what does it actually receive? | 2026-11-27 | — | 0 |
+| You write one byte past the end of a stack buffer. Does it reliably crash? What happens to that write *without* a sanitizer, and what does ASan do (redzones) that the hardware won't? Why does that make a buffer overflow more dangerous than a loud crash, not less? | 2026-11-27 | — | 0 |
+| `strncpy(dest, src, n)` where `src` is longer than `n`: what's left in `dest`, is there a terminator, and *where* does the bug detonate — at the copy or somewhere else? Is it a read or a write overflow? Whose job is the `'\0'`, and what *is* `strncpy` actually for? | 2026-11-27 | — | 0 |
+| `char x = 'i';` — is `x` an address? Which specifier prints it, and what happens if you use `%s` on it? What decides whether a variable holds a *value* or an *address* — and how can the same `char *` be printed by both `%p` and `%s`? | 2026-11-27 | — | 0 |
+| A size-`n` char buffer has just been filled with `n` copied characters. Where can the `'\0'` go, how many characters survive, and what's the general rule relating buffer size to the longest string (with terminator) it can hold? | 2026-11-27 | — | 0 |
 
 ## Phase progress
 
@@ -1222,17 +1316,17 @@ retires one after I've answered it correctly twice on different days.*
 real measure of progress — mechanical memory tags should give way to structural
 ones by Phase 5.*
 
-42 entries.
+43 entries.
 
 | Tag | Count |
 | --- | --- |
 | `python-collision` | 20 |
 | `types` | 16 |
 | `toolchain` | 12 |
-| `ub` | 11 |
-| `memory` | 9 |
+| `ub` | 12 |
+| `memory` | 10 |
 | `standard` | 6 |
 | `integer` | 4 |
 | `process` | 4 |
 | `alignment-aliasing` | 2 |
-| `buffer-overflow` | 1 |
+| `buffer-overflow` | 2 |

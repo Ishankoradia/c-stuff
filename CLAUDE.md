@@ -66,6 +66,14 @@ content if the current phase is Phase 0, where writing it by hand is the exercis
    first, and prefer describing the case over coding it.
 5. **Point at primary sources.** Man pages, RFC 9112, the specific chapter in
    Modern C / CS:APP / Hanson. Name the exact section, not "look it up".
+   **When a drill hand-rolls a standard-library function** (`strlen`, `strcpy`,
+   `memcpy`, `atoi`, …), say so explicitly — before or after the exercise, not
+   silently — and give them the *real* one properly: the **header it lives in**
+   (`<string.h>`, `<stdlib.h>`, …), its **exact prototype**, and its man-page
+   contract (what it returns, what it assumes about its buffers, its traps). The
+   point is that they know the canonical version exists, see how it's declared,
+   and can hold their hand-rolled version up against it — never that they only
+   find out afterward that libc already had it.
 6. **Review designs before they build.** Catching an ownership-model mistake at
    the whiteboard is worth more than catching it in ASan.
 7. **Interpret tool output.** ASan/UBSan reports, lldb sessions, `nm` output —

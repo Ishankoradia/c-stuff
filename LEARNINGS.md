@@ -547,3 +547,10 @@ recall queue. It is also the source for `/teach`'s quiz.
 - **Found out by:** `p1b/strcpy.c` — shrank `dest` to `char dest[2]` and copied `"hi there"` (9 bytes) into it. ASan reported `stack-buffer-overflow` at `strcpy.c:6` (the `*dest = *src` write), `dest` at `[32, 34)` overflowed at offset 34 — i.e. the 3rd byte, one past a 2-byte buffer. The point that stuck: without the sanitizer this likely wouldn't have crashed at all — it would have scribbled over adjacent stack memory and maybe still printed `"hi there"`, a silent corruption that passes tests. ASan surrounds the buffer with poisoned redzones and catches the exact write; hardware wouldn't.
 - **When:** 2026-11-26 · P1B
 - **Tags:** `memory`, `ub`, `buffer-overflow`
+
+## A run of `char`s is only a valid C string if it ends in `'\0'` — without the terminator you can't know where it ends, so reading it (`%s`, `strlen`) walks off the end into a buffer over-read. The danger surfaces at the *read*, not where the string was made
+
+- **I used to assume:** that reading the string (e.g. with `%s`) would iterate fine even without a terminator — that it would somehow stop on its own at the end of the data.
+- **Found out by:** `p1b/strncpy.c` — `my_strncpy(dest, "hi there", 4)` into `char dest[4]`: copied 4 bytes and (correctly, per `strncpy`) wrote **no** `'\0'`. The copy stayed in bounds — but `printf("%s", dest)` then walked past the 4-byte buffer hunting for a terminator that wasn't there → ASan `stack-buffer-overflow` on a **read**. The bug was created at the copy but only *detonated* at the `printf`.
+- **When:** 2026-11-27 · P1B
+- **Tags:** `memory`, `buffer-overflow`, `ub`
